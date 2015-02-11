@@ -23,11 +23,11 @@ double AreaCovered(int cx, int cy, double xleft, double xright, double ybottom, 
   return (right-left)*(top-bottom);
 }
 
-double RGBtoGray(char r, char g, char b){
+double RGBtoGray(unsigned char r, unsigned char g, unsigned char b){
   int ri = (int) r,
       gi = (int) g,
       bi = (int) b;
-  return (ri + gi + bi)/(255.0 * 3.0);
+  return (ri + gi + bi)/(3.0);
 }
 
 unsigned char byte_range(int number){

@@ -4,10 +4,8 @@
 #include "filehandling.h"
 #include "lodepng.h"
 #include <utility>
-#include "hornschunck.h"
 
-int main(int argc, char *argv[]){
-
+int main(){
   if (argc < 10){
     std::cout << "use following command line arguments" << std::endl;
     std::cout << "img1 img2 truth numlevel alpha wrapfactor omega maxiter sigma" << std::endl;
@@ -18,7 +16,6 @@ int main(int argc, char *argv[]){
   std::string truthfilename (argv[3]);
   int level = std::atoi(argv[4]);
   double alpha = std::atof(argv[5]);
-  double wrapfactor = std::atof(argv[6]);
   double omega = std::atof(argv[7]);
   int maxiter = std::atoi(argv[8]);
   double sigma = std::atof(argv[9]);
@@ -27,7 +24,6 @@ int main(int argc, char *argv[]){
   std::cout << filename2 << std::endl;
   std::cout << level << std::endl;
   std::cout << alpha << std::endl;
-  std::cout << wrapfactor << std::endl;
   std::cout << omega << std::endl;
   std::cout << maxiter << std::endl;
   std::cout << sigma << std::endl;

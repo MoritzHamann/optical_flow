@@ -42,7 +42,7 @@ class BaseArray {
     void Resize (int sizex, int sizey);
     void Resize (std::pair<int, int> size);
     void ResampleArea (int sizex, int sizey);
-    void ResampleLanczos (int sizex, int sizey);
+    void ResampleLanczos (int sizex, int sizey, int n);
     void GaussianSmooth (double sigma);
 
 };
@@ -65,9 +65,10 @@ class FlowField {
     void Resize (std::pair<int, int> size);
     void SetAll (double value);
     void ResampleArea (int sizex, int sizey);
-    void ResampleLanzcos (int sizex, int sizey);
+    void ResampleLanczos (int sizex, int sizey, int n);
     std::vector< std::vector<RGBA> > getColorImage();
     void writeToPNG(std::string filename);
+    void writeErrorToPNG(std::string filename, FlowField &t);
     double CalcAngularError(FlowField &t);
 };
 
@@ -88,7 +89,7 @@ class Img: public BaseArray {
 
     void GaussianSmoothOriginal(double sigma);
     void ResampleArea (int sizex, int sizey);
-    void ResampleLanczos (int sizex, int sizey);
+    void ResampleLanczos (int sizex, int sizey, int n);
 
     double Hx();
     double Hy();

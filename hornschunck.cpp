@@ -94,10 +94,14 @@ void HornSchunckOuterLoop(int iter,
   // resample images
   i1.ResampleArea(size.first, size.second);
   i2.ResampleArea(size.first, size.second);
+  //i1.ResampleLanczos(size.first, size.second, 3);
+  //i2.ResampleLanczos(size.first, size.second, 3);
 
   // resample flowfields
   c.ResampleArea(size.first, size.second);
   d.ResampleArea(size.first, size.second);
+  //c.ResampleLanczos(size.first, size.second, 3);
+  //c.ResampleLanczos(size.first, size.second, 3);
 
   // set fractional flow field to zero
   d.SetAll(0);

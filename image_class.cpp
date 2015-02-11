@@ -136,8 +136,37 @@ std::pair<int, int> BaseArray::Size(){
 }
 
 
-void BaseArray::ResampleLanczos(int sizex, int sizey){
+void BaseArray::ResampleLanczos(int sizex, int sizey, int n){
+  double xratio, yratio, sum, weight, x, y, Lx, Ly;
+  std::pair<int, int> size = Size();
 
+  std::vector< std::vector<double> > tmp (sizex, std::vector<double>(sizey));
+  xratio = sizex/(double)size.first;
+  yratio = sizey/(double)size.second;
+
+  for (int i = 0; i < sizex; i++){
+    for (int j = 0; j < sizey; j++){
+      x = i/xratio;
+      y = j/yratio;
+      sum = 0;
+      weight = 0;
+
+      for (int r = -n+1; r < n; r++){
+        for (int s = -n+1; s < n; s++){
+          int cx = floor(x)+r, cy = floor(y)+s;
+          Lx = Lanczos(cx-x, n);
+          Ly = Lanczos(cy-y, n);
+          weight += Lx * Ly;
+          sum += At(cx, cy, true) * Lx * Ly;
+        }
+      }
+      sum = sum/weight;
+      sum = (sum < 0) ? 0 : sum;
+      sum = (sum > 255) ? 255 : sum;
+      tmp[i][j] = sum;
+    }
+  }
+  data = tmp;
 }
 
 void BaseArray::ResampleArea(int sizex, int sizey){
@@ -192,7 +221,9 @@ tmp[i][j] = BilinearInterpolation(x1, x2, x3, x4, xcoord - xf, ycoord - yf);
 
 double BaseArray::Lanczos(double x, int a){
   if (x == 0) { return 1; }
-  if (abs(x) > 0 && abs(x) < a) { return (a * sin(M_PI * x) * sin((M_PI * x)/a))/(pow(M_PI, 2) * pow(x, 2));}
+  if (fabs(x) > 0 && fabs(x) < a) {
+    return (a * sin(M_PI * x) * sin((M_PI * x)/a))/(pow(M_PI, 2) * pow(x, 2));
+  }
   return 0;
 }
 
@@ -289,9 +320,9 @@ void FlowField::ResampleArea (int sizex, int sizey){
   v.ResampleArea(sizex, sizey);
 }
 
-void FlowField::ResampleLanzcos (int sizex, int sizey){
-  u.ResampleLanczos(sizex, sizey);
-  v.ResampleLanczos(sizex, sizey);
+void FlowField::ResampleLanczos (int sizex, int sizey, int n){
+  u.ResampleLanczos(sizex, sizey, n);
+  v.ResampleLanczos(sizex, sizey, n);
 }
 
 std::pair<int, int> FlowField::Size(){
@@ -391,6 +422,33 @@ std::vector< std::vector<RGBA> > FlowField::getColorImage(){
 void FlowField::writeToPNG(std::string filename){
   std::vector< std::vector<RGBA> > src = getColorImage();
   std::pair<int, int> size = u.Size();
+  std::vector<unsigned char> raw (size.first * size.second * 4);
+
+  for (int j = 0; j < size.second; j++){
+    for (int i = 0; i < size.first; i++){
+      raw[j * size.first * 4 + i * 4] = src[i][j].r;
+      raw[j * size.first * 4 + i * 4 + 1] = src[i][j].g;
+      raw[j * size.first * 4 + i * 4 + 2] = src[i][j].b;
+      raw[j * size.first * 4 + i * 4 + 3] = src[i][j].a;
+    }
+  }
+
+  lodepng::encode(filename.c_str(), raw, size.first, size.second);
+}
+
+void FlowField::writeErrorToPNG(std::string filename, FlowField &t){
+  FlowField tmp;
+  std::pair<int, int> size = Size();
+  tmp.Resize(size);
+
+  for (int i = 0; i < size.first; i++){
+    for (int j = 0; j < size.second; j++){
+      tmp.u[i][j] = u[i][j] - t.u[i][j];
+      tmp.v[i][j] = v[i][j] - t.v[i][j];
+    }
+  }
+
+  std::vector< std::vector<RGBA> > src = tmp.getColorImage();
   std::vector<unsigned char> raw (size.first * size.second * 4);
 
   for (int j = 0; j < size.second; j++){
@@ -529,6 +587,52 @@ void Img::ResampleArea(int sizex, int sizey){
       Set(i, j, sum/sumweight);
     }
   }
+}
+
+void Img::ResampleLanczos(int sizex, int sizey, int n){
+  double xratio, yratio, sum, weight, x, y, Lx, Ly;
+  std::pair<int, int> size = SizeOriginal();
+
+  std::vector< std::vector<double> > tmp (sizex, std::vector<double>(sizey));
+  xratio = sizex/(double)size.first;
+  yratio = sizey/(double)size.second;
+
+  for (int i = 0; i < sizex; i++){
+    for (int j = 0; j < sizey; j++){
+      x = i/xratio;
+      y = j/yratio;
+      sum = 0;
+      weight = 0;
+
+      for (int r = -n+1; r < n; r++){
+        for (int s = -n+1; s < n; s++){
+          int cx = floor(x)+r;
+          int cy = floor(y)+s;
+          Lx = Lanczos(cx-x, n);
+          Ly = Lanczos(cy-y, n);
+          weight += (Lx * Ly);
+          sum += (AtOriginal(cx, cy, true) * Lx * Ly);
+        }
+      }
+      sum = sum/weight;
+      /*if (sum < 0){
+        x = floor(x);
+        y = floor(y);
+        sum = AtOriginal(x, y, true);
+        //sum = 0.25 * (AtOriginal(x-1, y-1, true) + AtOriginal(x-1, y+1, true) + AtOriginal(x+1, y-1, true) + AtOriginal(x+1, y+1, true));
+      } else if (sum > 255) {
+        x = floor(x);
+        y = floor(y);
+        sum = AtOriginal(x, y, true);
+        //sum = 0.25 * (AtOriginal(x-1, y-1, true) + AtOriginal(x-1, y+1, true) + AtOriginal(x+1, y-1, true) + AtOriginal(x+1, y+1, true));
+      }
+      */
+      sum = (sum < 0) ? 0 : sum;
+      sum = (sum > 255) ? 255 : sum;
+      tmp[i][j] = sum;
+    }
+  }
+  data = tmp;
 }
 
 
