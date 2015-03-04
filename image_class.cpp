@@ -643,8 +643,8 @@ std::pair<int, int> Img::SizeOriginal(){
   return s;
 }
 
-const std::vector< std::vector<double> > *Img::getOriginal(){
-  return &original;
+std::vector< std::vector<double> > Img::getOriginal(){
+  return original;
 }
 
 double Img::Hx(){

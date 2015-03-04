@@ -81,7 +81,7 @@ class Img: public BaseArray {
 
   public:
     std::pair<int, int> SizeOriginal();
-    const std::vector< std::vector<double> > *getOriginal();
+    std::vector< std::vector<double> > getOriginal();
     double AtOriginal(int x, int y, bool mirror);
     void SetOriginal (int x, int y, double value);
     void SetOriginalTo(std::vector< std::vector<double> > src);

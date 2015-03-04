@@ -39,9 +39,9 @@ int main(int argc, char *argv[]){
   FlowField truth;
 
   // load files
-  loadPGMImage(filename1, image1);
-  loadPGMImage(filename2, image2);
-  loadBarronFile(truthfilename, truth);
+  loadPNGImage(filename1, image1);
+  loadPNGImage(filename2, image2);
+  //loadBarronFile(truthfilename, truth);
 
   // resize flowfields
   c.Resize(image1.Size());
@@ -60,7 +60,7 @@ int main(int argc, char *argv[]){
   HornSchunckLevelLoop(level, maxiter, alpha, omega, wrapfactor, image1, image2, c, d);
 
   c.writeToPNG("flowfield.png");
-  c.writeErrorToPNG("flowfield-error.png", truth);
-  std::cout << c.CalcAngularError(truth) << std::endl;
+  //c.writeErrorToPNG("flowfield-error.png", truth);
+  //std::cout << c.CalcAngularError(truth) << std::endl;
 
 }
