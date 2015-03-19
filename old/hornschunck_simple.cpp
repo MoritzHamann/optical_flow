@@ -171,6 +171,7 @@ void SORiterationStepSeparation(Img &i1,
                                 double alpha,
                                 double omega,
                                 double kappa,
+                                double deltat,
                                 BaseArray &J_11,
                                 BaseArray &J_22,
                                 BaseArray &J_33,
@@ -203,7 +204,7 @@ void SORiterationStepSeparation(Img &i1,
       m.v[i,j] += omega * horn_schunck_separation_v(m, i, j, J_11, J_22, J_33, J_12, J_13, J_23, phi, alpha, kappa, hx, hy, std::pair<int,int> size);
 
       phi[i,j] = (1 - omega) * phi(i,j,true);
-      phi[i,j] += omega * horn_schunck_separation_phi(phi, i, j, J_11, J_22, J_33, J_12, J_13, J_23, phi, alpha, kappa, hx, hy, std::pair<int,int> size);
+      phi[i,j] += omega * horn_schunck_separation_phi(phi, p, m, i, j, J_11, J_22, J_33, J_12, J_13, J_23, phi, alpha, kappa, deltat, hx, hy, std::pair<int,int> size);
     }
   }
 
@@ -241,7 +242,7 @@ double horn_schunck_separation_u(FlowField &f,
     ym =  (j > 0) * (1.0/(hy*hy));
     sum = xp + xm + yp + ym;
 
-
+    // TODO: add kappa
     // constancy terms
     n = J_12(i,j,true) * f.v(i,j,true) + J_13(i,j,true);
 
@@ -259,6 +260,7 @@ double horn_schunck_separation_u(FlowField &f,
 
   return n;
 }
+
 
 // the update of v for the simple horn-schunck with separtion
 double horn_schunck_separation_v(FlowField &f,
@@ -291,7 +293,7 @@ double horn_schunck_separation_v(FlowField &f,
     ym =  (j > 0) * (1.0/(hy*hy));
     sum = xp + xm + yp + ym;
 
-
+    // TODO: add kappa
     // constancy terms
     n = J_12(i,j,true) * f.u(i,j,true) + J_23(i,j,true);
 
@@ -308,4 +310,73 @@ double horn_schunck_separation_v(FlowField &f,
   }
 
   return n;
+}
+
+
+// update the separation field
+double horn_schunck_separation_phi(BaseArray &phi,
+                                   FlowField &p,
+                                   FlowField &m,
+                                   int i,
+                                   int j,
+                                   BaseArray &J_11,
+                                   BaseArray &J_22,
+                                   BaseArray &J_33,
+                                   BaseArray &J_12,
+                                   BaseArray &J_13,
+                                   BaseArray &J_23,
+                                   BaseArray &phi,
+                                   double alpha,
+                                   double kappa,
+                                   double deltat,
+                                   double hx,
+                                   double hy
+                                   std::pair<int, int> size){
+
+  // helper variables
+  double n, ph, hdot, phix, phiy, phixx, phiyy, phixy;
+
+  // compute helper variables
+  hdot = Hdot(phi(i,j,true));
+  phix = (phi(i+1,j,true) - phi(i-1,j,true))/(2 * hx);
+  phiy = (phi(i,j+1,true) - phi(i,j-1,true))/(2 * hy);
+
+  // extra test on boundary for 2nd order derivatives
+  phixx = (i < size.first -1) * (phi(i+1,j,true) - phi(i,j,true))/(hx*hx) + (i > 0) * (phi(i-1,j,true) - phi(i,j,true))/(hx*hx);
+  phiyy = (j < size.second -1) * (phi(i,j+1,true) - phi(i,j,true))/(hy*hy) + (j > 0) * (phi(i,j-1,true) - phi(i,j,true))/(hy*hy);
+  phixy = (i > 0) * (i < size.first -1) * (j > 0) * (j < size.second -1) *
+          (phi(i+1,j+1, true) + phi(i-1,j-1,true) - phi(i-1,j+1,true) - phi(i+1,j-1,true))/(hx*hy);
+
+  ph = phi(i,j,true);
+
+
+  // adding the positive smoothness terms
+  n =  - alpha * hdot * (p.u(i+1,j,true) - p.u(i-1,j,true) + p.v(i+1,j,true) - p.v(i-1,j,true))/(2*hx);
+  n += - alpha * hdot * (p.u(i,j+1,true) - p.u(i,j-1,true) + p.v(i,j+1,true) - p.v(i,j-1,true))/(2*hy);
+
+  // adding the negative smoothness terms
+  n += alpha * hdot * (m.u(i+1,j,true) - m.u(i-1,j,true) + m.v(i+1,j,true) - m.v(i-1,j,true))/(2*hx);
+  n += alpha * hdot * (m.u(i,j+1,true) - m.u(i,j-1,true) + m.v(i,j+1,true) - m.v(i,j-1,true))/(2*hy);
+
+  // adding the postive data terms
+  n += - kappa * hdot * (    J_11(i,j,true) * p.u(i,j,true) * p.u(i,j,true) +
+                             J_22(i,j,true) * p.v(i,j,true) * p.v(i,j,true) +
+                             J_33(i,j,true) +
+                         2 * J_12(i,j,true) * p.u(i,j,true) * p.v(i,j,true) +
+                         2 * J_13(i,j,true) * p.u(i,j,true) +
+                         2 * J_23(i,j,true) * p.v(i,j,true));
+
+  // adding the negative data terms
+  n += kappa * hdot * (    J_11(i,j,true) * m.u(i,j,true) * m.u(i,j,true) +
+                           J_22(i,j,true) * m.v(i,j,true) * m.v(i,j,true) +
+                           J_33(i,j,true) +
+                       2 * J_12(i,j,true) * m.u(i,j,true) * m.v(i,j,true) +
+                       2 * J_13(i,j,true) * m.u(i,j,true) +
+                       2 * J_23(i,j,true) * m.v(i,j,true));
+
+  // last term...
+  phi_abs = std::sqrt(phix * phix + phiy * phiy);
+  n += hdot * (phix * phix *phiyy + phiy * phiy * phixx - 2 * phix * phiy * phixy)/pow(phi_abs, 3);
+
+  return ph + deltat * n;
 }

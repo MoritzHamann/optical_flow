@@ -1,12 +1,61 @@
 #include <iostream>
-#include "image_class.h"
-#include "flow_utility.h"
-#include "filehandling.h"
-#include "lodepng.h"
-#include <utility>
-#include "hornschunck.h"
+#include <string>
+#include <opencv2/core/core.hpp>
+#include <opencv2/highgui/highgui.hpp>
 
 int main(int argc, char *argv[]){
+  // make sure we have enough commandline arguments
+  if (argc < 3){
+    std::cout << "use parameters: filename1, filename2, (filenametruth)" << std::endl;;
+    std::exit(1);
+  }
+
+  // get the filenames
+  std::string filename1 (argv[1]);
+  std::string filename2 (argv[2]);
+  std::string truthfilename;
+  if (argc > 3){
+    truthfilename = argv[3];
+  } else {
+    truthfilename = "";
+  }
+
+  // load the images, and make sure the exist
+  cv::Mat image1 = cv::imread(filename1, CV_LOAD_IMAGE_GRAYSCALE);
+  if (image1.empty()){
+    std::cout << "image 1 not found" << std::endl;
+    std::exit(1);
+  }
+
+  cv::Mat image2 = cv::imread(filename2, CV_LOAD_IMAGE_GRAYSCALE);
+  if (image2.empty()){
+    std::cout << "image2 not found" << std::endl;
+    std::exit(1);
+  }
+  // TODO: load barron file into mat
+  // Mat truth = loadBarronFile();
+
+  //
+
+  int pos = 0;
+  int poss = 2;
+  int keyCode = 0;
+
+  // main loop which recomputes the optical flow with the new parameters
+
+  cv::namedWindow("Optical flow", cv::WINDOW_AUTOSIZE);
+  cv::imshow("Optical flow", image1);
+  cv::createTrackbar("alpha", "Optical flow", &pos, 1000);
+  cv::createTrackbar("maxiter", "Optical flow", &poss, 10);
+
+  //cv::imshow("Optical flow", image2);
+  keyCode = cv::waitKey();
+  std::cout << keyCode << std::endl;
+
+
+}
+
+/*int main2(int argc, char *argv[]){
 
   if (argc < 10){
     std::cout << "use following command line arguments" << std::endl;
@@ -64,3 +113,4 @@ int main(int argc, char *argv[]){
   //std::cout << c.CalcAngularError(truth) << std::endl;
 
 }
+*/

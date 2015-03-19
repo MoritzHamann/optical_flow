@@ -1,4 +1,4 @@
-COMPILER=clang++
+ICOMPILER=clang++
 FLAGS=-Wno-c++11-extensions -Wall -flto -O3
 FILES=flow_utility.cpp lodepng.cpp filehandling.cpp image_class.cpp
 
