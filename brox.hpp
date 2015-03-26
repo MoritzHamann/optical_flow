@@ -2,11 +2,9 @@
 #define BROX_HPP
 
 
-#include "types.hpp"
-#include <opencv2/core/core.hpp>
-#include <unordered_map>
-#include <string>
-#include "tensor_computation.hpp"
-
+void setupParameters(std::unordered_map<std::string, parameter> &parameters);
+cv::Mat computeFlowField(const cv::Mat &image1, const cv::Mat &image2, std::unordered_map<std::string, parameter> &parameters);
+double L1(double value);
+double L1dot(double value);
 
 #endif
