@@ -66,7 +66,7 @@ double horn_schunck_separation_u(FlowField &f,
                                  double alpha,
                                  double kappa,
                                  double hx,
-                                 double hy
+                                 double hy,
                                  std::pair<int, int> size);
 
 double horn_schunck_separation_v(FlowField &f,
@@ -82,7 +82,7 @@ double horn_schunck_separation_v(FlowField &f,
                                 double alpha,
                                 double kappa,
                                 double hx,
-                                double hy
+                                double hy,
                                 std::pair<int, int> size);
 
 double horn_schunck_separation_phi(BaseArray &phi,
@@ -96,12 +96,11 @@ double horn_schunck_separation_phi(BaseArray &phi,
                                    BaseArray &J_12,
                                    BaseArray &J_13,
                                    BaseArray &J_23,
-                                   BaseArray &phi,
                                    double alpha,
                                    double kappa,
                                    double deltat,
                                    double hx,
-                                   double hy
+                                   double hy,
                                    std::pair<int, int> size);
 
 #endif

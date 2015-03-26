@@ -62,6 +62,7 @@ void ComputeConstancyTensor(Img &i1,
       J_23[i][j] = fxy(i, j, true) * fxt(i, j, true) + fyy(i, j, true) * fyt(i, j, true);
     }
   }
+  std::cout << J_11[10][10] << std::endl;
 }
 
 

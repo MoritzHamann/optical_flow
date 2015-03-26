@@ -39,8 +39,8 @@ int main(int argc, char *argv[]){
   FlowField truth;
 
   // load files
-  loadPNGImage(filename1, image1);
-  loadPNGImage(filename2, image2);
+  loadPGMImage(filename1, image1);
+  loadPGMImage(filename2, image2);
   //loadBarronFile(truthfilename, truth);
 
   // resize flowfields
@@ -55,6 +55,9 @@ int main(int argc, char *argv[]){
   }
 
   image1.GaussianSmoothOriginal(sigma);
+  image1.SetTo(image1.getOriginal());
+  writePNGImage("test.png", image1);
+
   image2.GaussianSmoothOriginal(sigma);
 
   HornSchunckLevelLoop(level, maxiter, alpha, omega, wrapfactor, image1, image2, c, d);

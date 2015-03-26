@@ -165,7 +165,7 @@ double L1dot(double x){
   double epsilon = 0.01;
   return 1.0 / (2 * std::sqrt(x + epsilon));
 }
-
+/*
 void SORiterationStepSeparation(Img &i1,
                                 Img &i2,
                                 double alpha,
@@ -325,7 +325,6 @@ double horn_schunck_separation_phi(BaseArray &phi,
                                    BaseArray &J_12,
                                    BaseArray &J_13,
                                    BaseArray &J_23,
-                                   BaseArray &phi,
                                    double alpha,
                                    double kappa,
                                    double deltat,
@@ -380,3 +379,4 @@ double horn_schunck_separation_phi(BaseArray &phi,
 
   return ph + deltat * n;
 }
+*/

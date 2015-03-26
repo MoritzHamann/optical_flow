@@ -34,9 +34,9 @@ int main(int argc, char *argv[]){
   BaseArray phi;
 
   // load files
-  loadPNGImage(filename1, image1);
-  loadPNGImage(filename2, image2);
-  //loadBarronFile(truthfilename, truth);
+  loadPGMImage(filename1, image1);
+  loadPGMImage(filename2, image2);
+  loadBarronFile(truthfilename, truth);
 
   // resize flowfields
   c.Resize(image1.Size());
@@ -56,12 +56,12 @@ int main(int argc, char *argv[]){
   image2.SetTo(image2.getOriginal());
 
   // initialize phi
-  UltraSimpleInitialization(phi);
+  //UltraSimpleInitialization(phi);
 
-  //SORiteration(image1, image2, alpha, omega, maxiter, c);
+  SORiteration(image1, image2, alpha, omega, maxiter, c);
 
   c.writeToPNG("flowfield-simple.png");
   //c.writeErrorToPNG("flowfield-error-simple.png", truth);
-  //std::cout << c.CalcAngularError(truth) << std::endl;
+  std::cout << c.CalcAngularError(truth) << std::endl;
 
 }
