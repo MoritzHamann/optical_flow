@@ -52,9 +52,6 @@ cv::Mat ComputeBrightnessTensor(const cv::Mat_<double> &i1, const cv::Mat_<doubl
   kernel = (cv::Mat_<double>(3,1) << -1, 0, 1);
   cv::filter2D(middle, y, -1, kernel * 1.0/(2*hy), cv::Point(-1,-1), 0, cv::BORDER_REPLICATE);
 
-  std::cout << "after filter2d" << std::endl;
-  std::cout << t.size() << ":" << middle.size() << ":" << x.size() << ":" << y.size() << std::endl;
-
   // compute tensor
   // channel 0=J11, 1=J22, 2=J33, 3=J12, 4=J13, 5=J23
   cv::Mat_<cv::Vec6d> b(i1.size());
@@ -69,8 +66,6 @@ cv::Mat ComputeBrightnessTensor(const cv::Mat_<double> &i1, const cv::Mat_<doubl
 
     }
   }
-
-  std::cout << "after tensor calculation" << std::endl;
 
   return b;
 }

@@ -5,7 +5,7 @@
 #include <opencv2/highgui/highgui.hpp>
 #include <opencv2/imgproc/imgproc.hpp>
 
-#include "hornschunck.hpp"
+#include "brox.hpp"
 
 #define WINDOW_NAME "optical flow"
 
@@ -293,7 +293,6 @@ int main(int argc, char *argv[]){
 
   // create trackbars for every parameter
   for (auto &i: parameters){
-    //parameter *p = new parameter(i.second);
     cv::createTrackbar(i.first, WINDOW_NAME, &i.second.value, i.second.maxvalue, TrackbarCallback, static_cast<void*>(&i.second));
   }
 
@@ -305,7 +304,9 @@ int main(int argc, char *argv[]){
     cv::Mat right(displayimage, cv::Rect(image1.size().width, 0, flowfield.size().width, flowfield.size().height));
     cv::cvtColor(image1, left, CV_GRAY2RGB);
     computeColorFlowField2(flowfield).copyTo(right);
-    std::cout << "AAE: " << CalcAngularError(flowfield, truth) << std::endl;
+    if (truthfilename != ""){
+      std::cout << "AAE: " << CalcAngularError(flowfield, truth) << std::endl;
+    }
 
     cv::imshow(WINDOW_NAME, displayimage);
 
