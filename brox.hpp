@@ -15,6 +15,16 @@ void Brox_step(const cv::Mat_<cv::Vec6d> &t,
                std::unordered_map<std::string, parameter> &parameters,
                double hx,
                double hy);
+
+void Brox_step_wo(const cv::Mat_<cv::Vec6d> &t,
+              const cv::Mat_<cv::Vec2d> &f,
+              cv::Mat_<cv::Vec2d> &p,
+              std::unordered_map<std::string, parameter> &parameters,
+              double hx,
+              double hy);
+
+cv::Mat computeSmoothnessTerm(const cv::Mat_<cv::Vec2d> &f, cv::Mat_<cv::Vec2d> &p, double hx, double hy);
+cv::Mat computeDataTerm(cv::Mat_<cv::Vec2d> &p, const cv::Mat_<cv::Vec6d> &t);
 double L1(double value);
 double L1dot(double value);
 

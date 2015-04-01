@@ -36,6 +36,19 @@ cv::Mat ComputeGradientTensor(const cv::Mat_<double> &i1, const cv::Mat_<double>
     }
   }
 
+
+  /*cv::Mat_<tensor> b(i1.size());
+  for (int i = 0; i < b.rows; i++){
+    for (int j = 0; j < b.cols; j++){
+      b(i,j).J11 = xx.at<double>(i,j) * xx.at<double>(i,j) + xy.at<double>(i,j) * xy.at<double>(i,j);
+      b(i,j).J22 = xy.at<double>(i,j) * xy.at<double>(i,j) + yy.at<double>(i,j) * yy.at<double>(i,j);
+      b(i,j).J33 = xt.at<double>(i,j) * xt.at<double>(i,j) + yt.at<double>(i,j) * yt.at<double>(i,j);
+      b(i,j).J12 = xx.at<double>(i,j) * xy.at<double>(i,j) + xy.at<double>(i,j) * yy.at<double>(i,j);
+      b(i,j).J13 = xx.at<double>(i,j) * xt.at<double>(i,j) + xy.at<double>(i,j) * yt.at<double>(i,j);
+      b(i,j).J23 = xy.at<double>(i,j) * xt.at<double>(i,j) + yy.at<double>(i,j) * yt.at<double>(i,j);
+    }
+  }*/
+
   return b;
 }
 

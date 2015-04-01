@@ -39,7 +39,8 @@ cv::Mat computeFlowField(const cv::Mat &image1, const cv::Mat &image2, std::unor
   cv::Mat_<cv::Vec6d> t = (1.0 - gamma) * ComputeBrightnessTensor(i1, i2, 1, 1) + gamma * ComputeGradientTensor(i1, i2, 1, 1);
 
   // create flowfield with additional borders
-  cv::Mat_<cv::Vec2d> flowfield(i1.rows+2, i1.cols+2);
+  cv::Mat_<cv::Vec2d> flowfield(i1.rows, i1.cols);
+  cv::copyMakeBorder(flowfield, flowfield, 1, 1, 1 , 1, cv::BORDER_CONSTANT, 0);
 
   // make sure all parameter exist
   if (parameters.count("maxiter") == 0 || parameters.count("alpha") == 0 ||
@@ -72,7 +73,7 @@ void HS_Stepfunction(const cv::Mat_<cv::Vec6d> &t, cv::Mat_<cv::Vec2d> &flowfiel
   double xp, xm, yp, ym, sum;
 
   // maybe copyBorder flowfield -1 border into complete flowfield?
-  copyMakeBorder(flowfield(cv::Rect(1,1,flowfield.cols-2, flowfield.rows-2)), flowfield, 1, 1, 1, 1, cv::BORDER_CONSTANT);
+  ///copyMakeBorder(flowfield(cv::Rect(1,1,flowfield.cols-2, flowfield.rows-2)), flowfield, 1, 1, 1, 1, cv::BORDER_CONSTANT);
 
   for (int i = 1; i < flowfield.rows-1; i++){
     for (int j = 1; j < flowfield.cols-1; j++ ){

@@ -5,7 +5,9 @@
 #include <opencv2/highgui/highgui.hpp>
 #include <opencv2/imgproc/imgproc.hpp>
 
+
 #include "brox.hpp"
+
 
 #define WINDOW_NAME "optical flow"
 
@@ -303,7 +305,9 @@ int main(int argc, char *argv[]){
     cv::Mat left(displayimage, cv::Rect(0, 0, image1.size().width, image1.size().height));
     cv::Mat right(displayimage, cv::Rect(image1.size().width, 0, flowfield.size().width, flowfield.size().height));
     cv::cvtColor(image1, left, CV_GRAY2RGB);
+
     computeColorFlowField2(flowfield).copyTo(right);
+
     if (truthfilename != ""){
       std::cout << "AAE: " << CalcAngularError(flowfield, truth) << std::endl;
     }
