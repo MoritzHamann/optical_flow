@@ -18,7 +18,7 @@
   * @param cv::Mat f Current Flowfield
   * @return cv::Mat A RGB image of the flowfield, visualized with hsv conversion
 */
-cv::Mat computeColorFlowField(cv::Mat f){
+void computeColorFlowField(const cv::Mat_<cv::Vec2d> &f, cv::Mat &img){
   // helper Mats
   cv::Mat flowfieldcomponents[2];
   cv::Mat magnitude, angle, hsv, _hsv[3];
@@ -37,9 +37,7 @@ cv::Mat computeColorFlowField(cv::Mat f){
   cv::merge(_hsv, 3, hsv);
   hsv.convertTo(hsv, CV_32FC3);     // cannot convert directly to CV_8UC3, because max(angle) could be 360 degrees
   cvtColor(hsv, hsv, CV_HSV2RGB);
-  hsv.convertTo(hsv, CV_8UC3);
-
-  return hsv;
+  hsv.convertTo(img, CV_8UC3);
 }
 
 
@@ -48,7 +46,7 @@ cv::Mat computeColorFlowField(cv::Mat f){
   * @param std::string filename The filename of the groundtruth file
   * @return cv::Mat The groundtruh as a vector field
 */
-cv::Mat loadBarronFile(std::string filename){
+void loadBarronFile(std::string filename, cv::Mat_<cv::Vec2d> &truth){
 
   FILE *file = fopen(filename.c_str(), "r");
   if (file == NULL){
@@ -72,7 +70,7 @@ cv::Mat loadBarronFile(std::string filename){
   int offsety = (int) help;
 
   // initialize truth vector field
-  cv::Mat_<cv::Vec2d> truth(ny, nx);
+  truth.create(ny, nx);
 
   // make tmp array
   std::vector< std::vector<double> > tmpu(nx_and_offsetx, std::vector<double>(ny_and_offsety));
@@ -98,7 +96,7 @@ cv::Mat loadBarronFile(std::string filename){
     }
   }
 
-  return truth;
+  //return truth;
 }
 
 
@@ -112,10 +110,12 @@ void TrackbarCallback(int value, void *userdata){
 
 
 
-cv::Mat computeColorFlowField2(cv::Mat_<cv::Vec2d> &flowfield){
+void computeColorFlowField2(const cv::Mat_<cv::Vec2d> &flowfield, cv::Mat &img){
+
+  //cv::Mat_<cv::Vec2d> flowfield = f;
 
   // make temporary array
-  cv::Mat img(flowfield.size(), CV_8UC3);
+  //cv::Mat img(flowfield.size(), CV_8UC3);
 
   double Pi = 3.141592653589793238463;;
   double amp;
@@ -195,7 +195,7 @@ cv::Mat computeColorFlowField2(cv::Mat_<cv::Vec2d> &flowfield){
   }
 
   cvtColor(img, img, CV_RGB2BGR);
-  return img;
+  //return img;
 }
 
 
@@ -203,7 +203,8 @@ cv::Mat computeColorFlowField2(cv::Mat_<cv::Vec2d> &flowfield){
 
 
 
-double CalcAngularError(cv::Mat_<cv::Vec2d> &flowfield, cv::Mat_<cv::Vec2d> truth){
+double CalcAngularError(const cv::Mat_<cv::Vec2d> &flowfield, const cv::Mat_<cv::Vec2d> truth){
+  //cv::Mat_<cv::Vec2d> flowfield = f;
   double amount = 0;
   double tmp1 = 0;
   double tmp2 = 0;
@@ -275,7 +276,7 @@ int main(int argc, char *argv[]){
   cv::Mat_<cv::Vec2d> truth;
   // load truthfile
   if (truthfilename != ""){
-    truth = loadBarronFile(truthfilename);
+    loadBarronFile(truthfilename, truth);
   }
 
   // create window
@@ -287,11 +288,12 @@ int main(int argc, char *argv[]){
   setupParameters(parameters);
 
 
-  // create flowfield matrix using Mat_ to get () access
+  // create flowfield
   cv::Mat_<cv::Vec2d> flowfield(image1.size());
+  flowfield = flowfield * 0;
 
   // create image for display and helper matrixes
-  cv::Mat displayimage(image1.size().height, image1.size().width + flowfield.size().width, CV_8UC3);
+  cv::Mat displayimage(image1.rows, image1.cols + flowfield.cols, CV_8UC3);
 
   // create trackbars for every parameter
   for (auto &i: parameters){
@@ -302,15 +304,11 @@ int main(int argc, char *argv[]){
   while(true){
 
     // copy image1 into displayimage
-    cv::Mat left(displayimage, cv::Rect(0, 0, image1.size().width, image1.size().height));
-    cv::Mat right(displayimage, cv::Rect(image1.size().width, 0, flowfield.size().width, flowfield.size().height));
+    cv::Mat left(displayimage, cv::Rect(0, 0, image1.cols, image1.rows));
+    cv::Mat right(displayimage, cv::Rect(image1.cols, 0, image1.cols, image1.rows));
     cv::cvtColor(image1, left, CV_GRAY2RGB);
-
-    computeColorFlowField2(flowfield).copyTo(right);
-
-    if (truthfilename != ""){
-      std::cout << "AAE: " << CalcAngularError(flowfield, truth) << std::endl;
-    }
+    right = right * 0;
+    computeColorFlowField2(flowfield, right);
 
     cv::imshow(WINDOW_NAME, displayimage);
 
@@ -322,11 +320,15 @@ int main(int argc, char *argv[]){
 
     // recompute on Enter Key
     if (keyCode == 13){
-      flowfield = computeFlowField(image1, image2, parameters);
+      computeFlowField(image1, image2, parameters, flowfield);
 
       std::cout << std::endl << "recomputed flow with:" << std::endl;
       for (auto i: parameters){
         std::cout << i.first << ": " << std::floor((double)i.second.value*100/i.second.divfactor)/100 << std::endl;
+      }
+
+      if (truthfilename != ""){
+        std::cout << "AAE: " << CalcAngularError(flowfield, truth) << std::endl;
       }
     }
   }

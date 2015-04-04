@@ -20,7 +20,8 @@ void setupParameters(std::unordered_map<std::string, parameter> &parameters){
 }
 
 
-cv::Mat computeFlowField(const cv::Mat &image1, const cv::Mat &image2, std::unordered_map<std::string, parameter> &parameters){
+void computeFlowField(const cv::Mat &image1, const cv::Mat &image2, std::unordered_map<std::string, parameter> &parameters,
+                         cv::Mat_<cv::Vec2d> &flowfield){
 
   // convert images into 64 bit floating point images
   cv::Mat i1, i2;
@@ -38,8 +39,9 @@ cv::Mat computeFlowField(const cv::Mat &image1, const cv::Mat &image2, std::unor
   double gamma = (double)parameters.at("gamma").value/parameters.at("gamma").divfactor;
   cv::Mat_<cv::Vec6d> t = (1.0 - gamma) * ComputeBrightnessTensor(i1, i2, 1, 1) + gamma * ComputeGradientTensor(i1, i2, 1, 1);
 
-  // create flowfield with additional borders
-  cv::Mat_<cv::Vec2d> flowfield(i1.rows, i1.cols);
+  // create flowfield
+  flowfield.create(i1.rows, i1.cols);
+  flowfield = cv::Vec2d(0,0);
   cv::copyMakeBorder(flowfield, flowfield, 1, 1, 1 , 1, cv::BORDER_CONSTANT, 0);
 
   // make sure all parameter exist
@@ -55,7 +57,7 @@ cv::Mat computeFlowField(const cv::Mat &image1, const cv::Mat &image2, std::unor
     HS_Stepfunction(t, flowfield, parameters);
   }
 
-  return flowfield(cv::Rect(1,1,image1.cols, image1.rows));
+  flowfield = flowfield(cv::Rect(1,1,image1.cols, image1.rows));
 }
 
 /**
