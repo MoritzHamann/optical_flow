@@ -19,7 +19,7 @@ void setupParameters(std::unordered_map<std::string, parameter> &parameters){
   parameter omega = {"omega", 195, 200, 100};
   parameter sigma = {"sigma", 15, 100, 10};
   parameter gamma = {"gamma", 500, 1000, 1000};
-  parameter maxiter = {"maxiter", 200, 2000, 1};
+  parameter maxiter = {"maxiter", 100, 2000, 1};
   parameter maxlevel = {"maxlevel", 4, 30, 1};
   parameter wrapfactor = {"wrapfactor", 5, 10, 10};
 
@@ -109,7 +109,7 @@ void computeFlowField(const cv::Mat &image1, const cv::Mat &image2, std::unorder
 
     // main loop
     for (int i = 0; i < maxiter; i++){
-      Brox_step_new_s(t, flowfield, partial, parameters, hx, hy);
+      Brox_step_aniso_smooth2(t, flowfield, partial, parameters, hx, hy);
     }
 
     // add partial flowfield to complete flowfield
@@ -121,159 +121,10 @@ void computeFlowField(const cv::Mat &image1, const cv::Mat &image2, std::unorder
 
 
 
-/**
-  * Inner loop of the Brox et al method
-  * (for now only use spatial smoothness term)
-*/
-void Brox_step(const cv::Mat_<cv::Vec6d> &t,
-               const cv::Mat_<cv::Vec2d> &f,
-               cv::Mat_<cv::Vec2d> &p,
-               std::unordered_map<std::string, parameter> &parameters,
-               double hx,
-               double hy){
-
-  // get parameters
-  double alpha = (double)parameters.at("alpha").value/parameters.at("alpha").divfactor;
-  double omega = (double)parameters.at("omega").value/parameters.at("omega").divfactor;
-
-  // helper variables
-  double xm, xp, ym, yp, sum, tmp;
-  cv::Mat_<double> smooth(p.size());
-  cv::Mat_<double> data(p.size());
-
-  // compute the smoothness terms
-  computeSmoothnessTerm(f, p, smooth, hx, hy);
-  computeDataTerm(p, t, data);
-
-  // update partial flow field
-  for (int i = 1; i < p.rows - 1; i++){
-    for (int j = 1; j < p.cols - 1; j++){
-
-      // handle borders
-      xm = (j > 1) * alpha/(hx*hx) * smooth(i,j);
-      xp = (j < p.cols - 2) * alpha/(hx*hx) * smooth(i,j);
-      ym = (i > 1) * alpha/(hy*hy) * smooth(i,j);
-      yp = (i < p.rows - 2) * alpha/(hy*hy) * smooth(i,j);
-      sum = xm + xp + ym + yp;
 
 
 
-      // compute du
-      // data terms
-      tmp = data(i,j) * (t(i,j)[3] * p(i,j)[1] + t(i,j)[4]);
-
-      // smoothness terms
-      tmp = tmp
-            - xm * (f(i,j-1)[0] + p(i,j-1)[0])
-            - xp * (f(i,j+1)[0] + p(i,j+1)[0])
-            - ym * (f(i-1,j)[0] + p(i-1,j)[0])
-            - yp * (f(i+1,j)[0] + p(i+1,j)[0])
-            + sum * f(i,j)[0];
-
-      // normalization
-      tmp = tmp /(-data(i,j) * t(i,j)[0] - sum);
-      p(i,j)[0] = (1.0-omega) * p(i,j)[0] + omega * tmp;
-
-
-      // same for dv
-      // data terms
-      tmp = data(i,j) * (t(i,j)[3] * p(i,j)[0] + t(i,j)[5]);
-
-      // smoothness terms
-      tmp = tmp
-            - xm * (f(i,j-1)[1] + p(i,j-1)[1])
-            - xp * (f(i,j+1)[1] + p(i,j+1)[1])
-            - ym * (f(i-1,j)[1] + p(i-1,j)[1])
-            - yp * (f(i+1,j)[1] + p(i+1,j)[1])
-            + sum * f(i,j)[1];
-
-      // normalization
-      tmp = tmp /(-data(i,j) * t(i,j)[1] - sum);
-      p(i,j)[1] = (1.0-omega) * p(i,j)[1] + omega * tmp;
-
-    }
-  }
-
-}
-
-
-
-void Brox_step_wo(const cv::Mat_<cv::Vec6d> &t,
-               const cv::Mat_<cv::Vec2d> &f,
-               cv::Mat_<cv::Vec2d> &p,
-               std::unordered_map<std::string, parameter> &parameters,
-               double hx,
-               double hy){
-
-  // get parameters
-  double alpha = (double)parameters.at("alpha").value/parameters.at("alpha").divfactor;
-  double omega = (double)parameters.at("omega").value/parameters.at("omega").divfactor;
-
-  // helper variables
-  double xm, xp, ym, yp, sum, tmp;
-
-  // compute the smoothness terms
-  //cv::Mat_<double> smooth = computeSmoothnessTerm(f, p, hx, hy);
-  cv::Mat_<double> data(p.size());
-  cv::Mat_<double> smooth(p.size());
-  computeDataTerm(p, t, data);
-  computeSmoothnessTerm(f, p, smooth, hx, hy);
-
-  // update partial flow field
-  for (int i = 1; i < p.rows - 1; i++){
-    for (int j = 1; j < p.cols - 1; j++){
-
-      // handle borders
-      xm = (j > 1) * alpha/(hx*hx);
-      xp = (j < p.cols - 2) * alpha/(hx*hx);
-      ym = (i > 1) * alpha/(hy*hy);
-      yp = (i < p.rows - 2) * alpha/(hy*hy);
-      sum = xm + xp + ym + yp;
-
-
-
-      // compute du
-      // data terms
-      tmp = data(i,j) * (t(i,j)[3] * p(i,j)[1] + t(i,j)[4]);
-
-      // smoothness terms
-      tmp = tmp
-            - xm * (f(i,j-1)[0] + p(i,j-1)[0])
-            - xp * (f(i,j+1)[0] + p(i,j+1)[0])
-            - ym * (f(i-1,j)[0] + p(i-1,j)[0])
-            - yp * (f(i+1,j)[0] + p(i+1,j)[0])
-            + sum * f(i,j)[0];
-
-      // normalization
-      tmp = tmp /(- data(i,j) * t(i,j)[0] - sum);
-      p(i,j)[0] = (1.0-omega) * p(i,j)[0] + omega * tmp;
-
-
-      // same for dv
-      // data terms
-      tmp = data(i,j) * (t(i,j)[3] * p(i,j)[0] + t(i,j)[5]);
-
-      // smoothness terms
-      tmp = tmp
-            - xm * (f(i,j-1)[1] + p(i,j-1)[1])
-            - xp * (f(i,j+1)[1] + p(i,j+1)[1])
-            - ym * (f(i-1,j)[1] + p(i-1,j)[1])
-            - yp * (f(i+1,j)[1] + p(i+1,j)[1])
-            + sum * f(i,j)[1];
-
-      // normalization
-      tmp = tmp /(- data(i,j) * t(i,j)[1] - sum);
-      p(i,j)[1] = (1.0-omega) * p(i,j)[1] + omega * tmp;
-
-    }
-  }
-
-}
-
-
-
-
-void Brox_step_new_s(const cv::Mat_<cv::Vec6d> &t,
+void Brox_step_iso_smooth(const cv::Mat_<cv::Vec6d> &t,
                const cv::Mat_<cv::Vec2d> &f,
                cv::Mat_<cv::Vec2d> &p,
                std::unordered_map<std::string, parameter> &parameters,
@@ -347,6 +198,196 @@ void Brox_step_new_s(const cv::Mat_<cv::Vec6d> &t,
 
 
 
+void Brox_step_aniso_smooth(const cv::Mat_<cv::Vec6d> &t,
+               const cv::Mat_<cv::Vec2d> &f,
+               cv::Mat_<cv::Vec2d> &p,
+               std::unordered_map<std::string, parameter> &parameters,
+               double hx,
+               double hy){
+
+  // get parameters
+  double alpha = (double)parameters.at("alpha").value/parameters.at("alpha").divfactor;
+  double omega = (double)parameters.at("omega").value/parameters.at("omega").divfactor;
+
+  // helper variables
+  double xm, xp, ym, yp, sum, tmp;
+
+  // compute the smoothness terms
+  //cv::Mat_<double> smooth = computeSmoothnessTerm(f, p, hx, hy);
+  cv::Mat_<double> data(p.size());
+  cv::Mat_<cv::Vec3d> smooth(p.size());
+  computeDataTerm(p, t, data);
+  computeAnisotropicSmoothnessTerm(f, p, smooth, hx, hy);
+
+  // update partial flow field
+  for (int i = 1; i < p.rows - 1; i++){
+    for (int j = 1; j < p.cols - 1; j++){
+
+      // handle borders for terms on von Neumann neighboorhood
+      // isotropic part + anisotropic part
+
+      xm = (j > 1) * (smooth(i,j-1)[0] + smooth(i,j)[0])/2.0 * alpha/(hx*hx);
+      xp = (j < p.cols - 2) * (smooth(i,j+1)[0] + smooth(i,j)[0])/2.0 * alpha/(hx*hx);
+      ym = (i > 1) * (smooth(i-1,j)[2] + smooth(i,j)[2])/2.0 * alpha/(hy*hy);
+      yp = (i < p.rows - 2) * (smooth(i+1,j)[2] + smooth(i,j)[2])/2.0 * alpha/(hy*hy);
+      sum = xm + xp + ym + yp;
+
+      // compute du
+      // data terms
+      tmp = data(i,j) * (t(i,j)[3] * p(i,j)[1] + t(i,j)[4]);
+
+      // smoothness terms (von Neumann neighboorhood)
+      tmp = tmp
+            - xm * (f(i,j-1)[0] + p(i,j-1)[0])
+            - xp * (f(i,j+1)[0] + p(i,j+1)[0])
+            - ym * (f(i-1,j)[0] + p(i-1,j)[0])
+            - yp * (f(i+1,j)[0] + p(i+1,j)[0])
+            + sum * f(i,j)[0];
+
+      // remaining neighboorhoods
+      tmp += (j < p.cols - 2) * (i < p.rows - 2) * -alpha/(hx*hy) * smooth(i,j+1)[1] * (f(i+1,j+1)[0] + p(i+1,j+1)[0] - f(i,j+1)[0] - p(i,j+1)[0]);
+      tmp += (j > 1) * (i > 1) * -alpha/(hx*hy) * smooth(i,j-1)[1] * (f(i,j-1)[0] + p(i,j-1)[0] - f(i-1,j-1)[0] - p(i-1,j-1)[0]);
+      tmp += (j < p.cols - 2) * (i < p.rows - 2) * -alpha/(hx*hy) * smooth(i+1,j)[1] * (f(i+1,j+1)[0] + p(i+1,j+1)[0] - f(i+1,j)[0] - p(i+1,j)[0]);
+      tmp += (j > 1) * (i > 1) * -alpha/(hx*hy) * smooth(i-1,j)[1] * (f(i-1,j)[0] + p(i-1,j)[0] - f(i-1,j-1)[0] - p(i-1,j-1)[0]);
+
+
+      // normalization
+      tmp = tmp /(- data(i,j) * t(i,j)[0] - sum);
+      p(i,j)[0] = (1.0-omega) * p(i,j)[0] + omega * tmp;
+
+
+      // same for dv
+      // data terms
+      tmp = data(i,j) * (t(i,j)[3] * p(i,j)[0] + t(i,j)[5]);
+
+      // smoothness terms
+      tmp = tmp
+            - xm * (f(i,j-1)[1] + p(i,j-1)[1])
+            - xp * (f(i,j+1)[1] + p(i,j+1)[1])
+            - ym * (f(i-1,j)[1] + p(i-1,j)[1])
+            - yp * (f(i+1,j)[1] + p(i+1,j)[1])
+            + sum * f(i,j)[1];
+
+      // remaining neighboorhoods
+      tmp += (j < p.cols - 2) * (i < p.rows - 2) * -alpha/(hx*hy) * smooth(i,j+1)[1] * (f(i+1,j+1)[1] + p(i+1,j+1)[1] - f(i,j+1)[1] - p(i,j+1)[1]);
+      tmp += (j > 1) * (i > 1) * -alpha/(hx*hy) * smooth(i,j-1)[1] * (f(i,j-1)[1] + p(i,j-1)[1] - f(i-1,j-1)[1] - p(i-1,j-1)[1]);
+      tmp += (j < p.cols - 2) * (i < p.rows - 2) * -alpha/(hx*hy) * smooth(i+1,j)[1] * (f(i+1,j+1)[1] + p(i+1,j+1)[1] - f(i+1,j)[1] - p(i+1,j)[1]);
+      tmp += (j > 1) * (i > 1) * -alpha/(hx*hy) * smooth(i-1,j)[1] * (f(i-1,j)[1] + p(i-1,j)[1] - f(i-1,j-1)[1] - p(i-1,j-1)[1]);
+
+
+      // normalization
+      tmp = tmp /(- data(i,j) * t(i,j)[1] - sum);
+      p(i,j)[1] = (1.0-omega) * p(i,j)[1] + omega * tmp;
+
+    }
+  }
+
+}
+
+
+
+void Brox_step_aniso_smooth2(const cv::Mat_<cv::Vec6d> &t,
+               const cv::Mat_<cv::Vec2d> &f,
+               cv::Mat_<cv::Vec2d> &p,
+               std::unordered_map<std::string, parameter> &parameters,
+               double hx,
+               double hy){
+
+  // get parameters
+  double alpha = (double)parameters.at("alpha").value/parameters.at("alpha").divfactor;
+  double omega = (double)parameters.at("omega").value/parameters.at("omega").divfactor;
+
+  // helper variables
+  double xm, xp, ym, yp, sum, tmp;
+
+  // compute the smoothness terms
+  //cv::Mat_<double> smooth = computeSmoothnessTerm(f, p, hx, hy);
+  cv::Mat_<double> data(p.size());
+  cv::Mat_<cv::Vec3d> smooth(p.size());
+  computeDataTerm(p, t, data);
+  computeAnisotropicSmoothnessTerm(f, p, smooth, hx, hy);
+
+  // update partial flow field
+  for (int i = 1; i < p.rows - 1; i++){
+    for (int j = 1; j < p.cols - 1; j++){
+
+      // handle borders for terms on von Neumann neighboorhood
+      // isotropic part + anisotropic part
+
+      xm = (j > 1) * (smooth(i,j-1)[0] + smooth(i,j)[0])/2.0 * alpha/(hx*hx);
+      xp = (j < p.cols - 2) * (smooth(i,j+1)[0] + smooth(i,j)[0])/2.0 * alpha/(hx*hx);
+      ym = (i > 1) * (smooth(i-1,j)[2] + smooth(i,j)[2])/2.0 * alpha/(hy*hy);
+      yp = (i < p.rows - 2) * (smooth(i+1,j)[2] + smooth(i,j)[2])/2.0 * alpha/(hy*hy);
+      sum = xm + xp + ym + yp;
+
+      // compute du
+      // data terms
+      tmp = data(i,j) * (t(i,j)[3] * p(i,j)[1] + t(i,j)[4]);
+
+      // smoothness terms (von Neumann neighboorhood)
+      tmp = tmp
+            - xm * (f(i,j-1)[0] + p(i,j-1)[0])
+            - xp * (f(i,j+1)[0] + p(i,j+1)[0])
+            - ym * (f(i-1,j)[0] + p(i-1,j)[0])
+            - yp * (f(i+1,j)[0] + p(i+1,j)[0])
+            + sum * f(i,j)[0];
+
+      // remaining neighboorhoods
+      tmp += (j < p.cols - 2) * ( i > 1) * (i < p.rows - 2) *
+            -(alpha/(hx*hy)) * (smooth(i,j+1)[1]+smooth(i,j)[1])/8.0 *
+            (f(i+1,j+1)[0] + p(i+1,j+1)[0] + f(i+1,j)[0] + p(i+1,j)[0] - f(i-1,j)[0] - p(i-1,j)[0] - f(i-1,j+1)[0] - p(i-1,j+1)[0]);
+      tmp -= (j > 1) * (i > 1) * ( i < p.rows - 2) *
+            -(alpha/(hx*hy)) * (smooth(i,j)[1] + smooth(i,j-1)[1])/8.0 *
+            (f(i+1,j)[0] + p(i+1,j)[0] + f(i+1,j-1)[0] + p(i+1,j-1)[0] - f(i-1,j)[0] - p(i-1,j)[0] - f(i-1,j-1)[0] - p(i-1,j-1)[0]);
+      tmp += (i < p.rows - 2) * (j > 1) * (j < p.cols - 2) *
+            -(alpha/(hx*hy)) * (smooth(i+1,j)[1] + smooth(i,j)[1])/8.0 *
+            (f(i+1,j+1)[0] + p(i+1,j+1)[0] + f(i,j+1)[0] + p(i,j+1)[0] - f(i,j-1)[0] - p(i,j-1)[0] - f(i+1,j-1)[0] - p(i+1,j-1)[0]);
+      tmp -= (i > 1) * (j > 1) * (j < p.cols - 2) *
+            -(alpha/(hx*hy)) * (smooth(i,j)[1] + smooth(i-1,j)[1])/8.0 *
+            (f(i,j+1)[0] + p(i,j+1)[0] + f(i-1,j+1)[0] + p(i-1,j+1)[0] - f(i,j-1)[0] - p(i,j-1)[0] - f(i-1,j-1)[0] - p(i-1,j-1)[0]);
+
+      // normalization
+      tmp = tmp /(- data(i,j) * t(i,j)[0] - sum);
+      p(i,j)[0] = (1.0-omega) * p(i,j)[0] + omega * tmp;
+
+
+      // same for dv
+      // data terms
+      tmp = data(i,j) * (t(i,j)[3] * p(i,j)[0] + t(i,j)[5]);
+
+      // smoothness terms
+      tmp = tmp
+            - xm * (f(i,j-1)[1] + p(i,j-1)[1])
+            - xp * (f(i,j+1)[1] + p(i,j+1)[1])
+            - ym * (f(i-1,j)[1] + p(i-1,j)[1])
+            - yp * (f(i+1,j)[1] + p(i+1,j)[1])
+            + sum * f(i,j)[1];
+
+      // remaining neighboorhoods
+      tmp += (j < p.cols - 2) * ( i > 1) * (i < p.rows - 2) *
+            -(alpha/(hx*hy)) * (smooth(i,j+1)[1]+smooth(i,j)[1])/8.0 *
+            (f(i+1,j+1)[1] + p(i+1,j+1)[1] + f(i+1,j)[1] + p(i+1,j)[1] - f(i-1,j)[1] - p(i-1,j)[1] - f(i-1,j+1)[1] - p(i-1,j+1)[1]);
+      tmp -= (j > 1) * (i > 1) * ( i < p.rows - 2) *
+            -(alpha/(hx*hy)) * (smooth(i,j)[1] + smooth(i,j-1)[1])/8.0 *
+            (f(i+1,j)[1] + p(i+1,j)[1] + f(i+1,j-1)[1] + p(i+1,j-1)[1] - f(i-1,j)[1] - p(i-1,j)[1] - f(i-1,j-1)[1] - p(i-1,j-1)[1]);
+      tmp += (i < p.rows - 2) * (j > 1) * (j < p.cols - 2) *
+            -(alpha/(hx*hy)) * (smooth(i+1,j)[1] + smooth(i,j)[1])/8.0 *
+            (f(i+1,j+1)[1] + p(i+1,j+1)[1] + f(i,j+1)[1] + p(i,j+1)[1] - f(i,j-1)[1] - p(i,j-1)[1] - f(i+1,j-1)[1] - p(i+1,j-1)[1]);
+      tmp -= (i > 1) * (j > 1) * (j < p.cols - 2) *
+            -(alpha/(hx*hy)) * (smooth(i,j)[1] + smooth(i-1,j)[1])/8.0 *
+            (f(i,j+1)[1] + p(i,j+1)[1] + f(i-1,j+1)[1] + p(i-1,j+1)[1] - f(i,j-1)[1] - p(i,j-1)[1] - f(i-1,j-1)[1] - p(i-1,j-1)[1]);
+
+      // normalization
+      tmp = tmp /(- data(i,j) * t(i,j)[1] - sum);
+      p(i,j)[1] = (1.0-omega) * p(i,j)[1] + omega * tmp;
+
+    }
+  }
+
+}
+
+
+
 
 
 
@@ -382,6 +423,57 @@ void computeSmoothnessTerm(const cv::Mat_<cv::Vec2d> &f, const cv::Mat_<cv::Vec2
       tmp = ux.at<double>(i,j) * ux.at<double>(i,j) + uy.at<double>(i,j) * uy.at<double>(i,j);
       tmp = tmp + vx.at<double>(i,j) * vx.at<double>(i,j) + vy.at<double>(i,j) * vy.at<double>(i,j);
       smooth(i,j) = L1dot(tmp);
+    }
+  }
+}
+
+
+void computeAnisotropicSmoothnessTerm(const cv::Mat_<cv::Vec2d> &f, const cv::Mat_<cv::Vec2d> &p, cv::Mat_<cv::Vec3d> &smooth, double hx, double hy){
+  cv::Mat fc[2], pc[2];
+  cv::Mat flow_u, flow_v, ux, uy, vx, vy, kernel, eigenvalues, eigenvectors;
+
+  // split flowfield in components
+  cv::split(f, fc);
+  flow_u = fc[0];
+  flow_v = fc[1];
+
+  // split partial flowfield in components
+  cv::split(p, pc);
+  flow_u = flow_u + pc[0];
+  flow_v = flow_v + pc[1];
+
+  // derivates in y-direction
+  kernel = (cv::Mat_<double>(3,1) << -1, 0, 1);
+  cv::filter2D(flow_u, uy, CV_64F, kernel * 1.0/(2*hy), cv::Point(-1,-1), 0, cv::BORDER_REPLICATE);
+  cv::filter2D(flow_v, vy, CV_64F, kernel * 1.0/(2*hy), cv::Point(-1,-1), 0, cv::BORDER_REPLICATE);
+
+  // derivates in x-dirction
+  kernel = (cv::Mat_<double>(1,3) << -1, 0, 1);
+  cv::filter2D(flow_u, ux, CV_64F, kernel * 1.0/(2*hx), cv::Point(-1,-1), 0, cv::BORDER_REPLICATE);
+  cv::filter2D(flow_v, vx, CV_64F, kernel * 1.0/(2*hx), cv::Point(-1,-1), 0, cv::BORDER_REPLICATE);
+
+  cv::Mat tmparray(2,2, CV_64F);
+  for (int i = 0; i < p.rows; i++){
+    for (int j = 0; j < p.cols; j++){
+      // compute nabla(u)*nabla(u)^T + nabla(v)*nabla(v)^T
+      tmparray.at<double>(0,0) = ux.at<double>(i,j) * ux.at<double>(i,j) + vx.at<double>(i,j) * vx.at<double>(i,j);
+      tmparray.at<double>(1,0) = ux.at<double>(i,j) * uy.at<double>(i,j) + vx.at<double>(i,j) * vy.at<double>(i,j);
+      tmparray.at<double>(0,1) = ux.at<double>(i,j) * uy.at<double>(i,j) + vx.at<double>(i,j) * vy.at<double>(i,j);
+      tmparray.at<double>(1,1) = uy.at<double>(i,j) * uy.at<double>(i,j) + vy.at<double>(i,j) * vy.at<double>(i,j);
+      //std::cout << tmparray << " : ";
+      // compute eigenvalues
+      cv::eigen(tmparray, eigenvalues, eigenvectors);
+
+      // scale eigenvalues
+      eigenvalues.at<double>(0) = L1dot(eigenvalues.at<double>(0));
+      eigenvalues.at<double>(1) = L1dot(eigenvalues.at<double>(1));
+
+      // recompute array with scaled eigenvalues
+      tmparray = eigenvectors.inv() * cv::Mat::diag(eigenvalues) * eigenvectors;
+      smooth(i,j)[0] = tmparray.at<double>(0,0);
+      smooth(i,j)[1] = tmparray.at<double>(0,1);
+      smooth(i,j)[2] = tmparray.at<double>(1,1);
+      //std::cout << tmparray << std::endl << "eigenvalues: " << eigenvalues << std::endl << eigenvectors << std::endl << std::endl;
     }
   }
 }
