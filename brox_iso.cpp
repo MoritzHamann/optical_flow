@@ -15,13 +15,13 @@ void debug(std::string text){
   * Set up the parameters
 */
 void setupParameters(std::unordered_map<std::string, parameter> &parameters){
-  parameter alpha = {"alpha", 10, 300, 1};
+  parameter alpha = {"alpha", 10, 100, 1};
   parameter omega = {"omega", 195, 200, 100};
   parameter sigma = {"sigma", 15, 100, 10};
   parameter gamma = {"gamma", 500, 1000, 1000};
-  parameter maxiter = {"maxiter", 100, 2000, 1};
-  parameter maxlevel = {"maxlevel", 4, 30, 1};
-  parameter wrapfactor = {"wrapfactor", 5, 10, 10};
+  parameter maxiter = {"maxiter", 100, 1000, 1};
+  parameter maxlevel = {"maxlevel", 4, 100, 1};
+  parameter wrapfactor = {"wrapfactor", 95, 100, 100};
   parameter nonlinear_step = {"nonlinear_step", 10, 150, 1};
 
   parameters.insert(std::make_pair<std::string, parameter>(alpha.name, alpha));
@@ -96,7 +96,7 @@ void computeFlowField(const cv::Mat &image1, const cv::Mat &image2, std::unorder
     // wrap image 2 with current flowfield
     flowfield.convertTo(flowfield_wrap, CV_32FC2);
     flowfield_wrap = flowfield_wrap + remap_basis(cv::Rect(0, 0, flowfield_wrap.cols, flowfield_wrap.rows));
-    cv::remap(i2, i2, flowfield_wrap, cv::Mat(), cv::INTER_LINEAR, cv::BORDER_TRANSPARENT, cv::Scalar(0));
+    cv::remap(i2, i2, flowfield_wrap, cv::Mat(), cv::INTER_LINEAR, cv::BORDER_REPLICATE, cv::Scalar(0));
 
 
     // compute tensors
@@ -116,7 +116,6 @@ void computeFlowField(const cv::Mat &image1, const cv::Mat &image2, std::unorder
     int nonlinear_step = parameters.at("nonlinear_step").value;
     for (int i = 0; i < maxiter; i++){
       if (i % nonlinear_step == 0 || i == 0){
-        std::cout << "nonlinear calculation, step: " << i << std::endl;
         computeDataTerm(partial, t, data);
         computeSmoothnessTerm(flowfield, partial, smooth, hx, hy);
       }

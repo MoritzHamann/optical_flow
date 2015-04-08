@@ -300,6 +300,7 @@ int main(int argc, char *argv[]){
     cv::createTrackbar(i.first, WINDOW_NAME, &i.second.value, i.second.maxvalue, TrackbarCallback, static_cast<void*>(&i.second));
   }
 
+  cv::Mat error;
   // main loop which recomputes the optical flow with the new parameters
   while(true){
 
@@ -308,7 +309,9 @@ int main(int argc, char *argv[]){
     cv::Mat right(displayimage, cv::Rect(image1.cols, 0, image1.cols, image1.rows));
     cv::cvtColor(image1, left, CV_GRAY2RGB);
     right = right * 0;
-    computeColorFlowField2(flowfield, right);
+    computeColorFlowField(flowfield, right);
+    computeColorFlowField((flowfield-truth), error);
+    cv::imshow("error", error);
 
     cv::imshow(WINDOW_NAME, displayimage);
 
