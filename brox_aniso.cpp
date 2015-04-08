@@ -22,6 +22,8 @@ void setupParameters(std::unordered_map<std::string, parameter> &parameters){
   parameter maxiter = {"maxiter", 100, 2000, 1};
   parameter maxlevel = {"maxlevel", 4, 30, 1};
   parameter wrapfactor = {"wrapfactor", 5, 10, 10};
+  parameter nonlinear_step = {"nonlinear_step", 10, 150, 1};
+
 
   parameters.insert(std::make_pair<std::string, parameter>(alpha.name, alpha));
   parameters.insert(std::make_pair<std::string, parameter>(omega.name, omega));
@@ -30,6 +32,8 @@ void setupParameters(std::unordered_map<std::string, parameter> &parameters){
   parameters.insert(std::make_pair<std::string, parameter>(maxiter.name, maxiter));
   parameters.insert(std::make_pair<std::string, parameter>(maxlevel.name, maxlevel));
   parameters.insert(std::make_pair<std::string, parameter>(wrapfactor.name, wrapfactor));
+  parameters.insert(std::make_pair<std::string, parameter>(nonlinear_step.name, nonlinear_step));
+
 }
 
 
@@ -108,8 +112,17 @@ void computeFlowField(const cv::Mat &image1, const cv::Mat &image2, std::unorder
     partial = cv::Vec2d(0,0);
 
     // main loop
+    cv::Mat_<double> data(partial.size());
+    cv::Mat_<cv::Vec3d> smooth(partial.size());
+    int nonlinear_step = parameters.at("nonlinear_step").value;
     for (int i = 0; i < maxiter; i++){
-      Brox_step_aniso_smooth2(t, flowfield, partial, parameters, hx, hy);
+      if (i % nonlinear_step == 0 || i == 0){
+        std::cout << "nonlinear calculation, step: " << i << std::endl;
+
+        computeDataTerm(partial, t, data);
+        computeAnisotropicSmoothnessTerm(flowfield, partial, smooth, hx, hy);
+      }
+      Brox_step_aniso_smooth(t, flowfield, partial, data, smooth, parameters, hx, hy);
     }
 
     // add partial flowfield to complete flowfield
@@ -124,81 +137,7 @@ void computeFlowField(const cv::Mat &image1, const cv::Mat &image2, std::unorder
 
 
 
-void Brox_step_iso_smooth(const cv::Mat_<cv::Vec6d> &t,
-               const cv::Mat_<cv::Vec2d> &f,
-               cv::Mat_<cv::Vec2d> &p,
-               std::unordered_map<std::string, parameter> &parameters,
-               double hx,
-               double hy){
-
-  // get parameters
-  double alpha = (double)parameters.at("alpha").value/parameters.at("alpha").divfactor;
-  double omega = (double)parameters.at("omega").value/parameters.at("omega").divfactor;
-
-  // helper variables
-  double xm, xp, ym, yp, sum, tmp;
-
-  // compute the smoothness terms
-  //cv::Mat_<double> smooth = computeSmoothnessTerm(f, p, hx, hy);
-  cv::Mat_<double> data(p.size());
-  cv::Mat_<double> smooth(p.size());
-  computeDataTerm(p, t, data);
-  computeSmoothnessTerm(f, p, smooth, hx, hy);
-
-  // update partial flow field
-  for (int i = 1; i < p.rows - 1; i++){
-    for (int j = 1; j < p.cols - 1; j++){
-
-      // handle borders
-      xm = (j > 1) * (smooth(i,j-1) + smooth(i,j))/2.0 * alpha/(hx*hx);
-      xp = (j < p.cols - 2) * (smooth(i,j+1) + smooth(i,j))/2.0 * alpha/(hx*hx);
-      ym = (i > 1) * (smooth(i-1,j) + smooth(i,j))/2.0 * alpha/(hy*hy);
-      yp = (i < p.rows - 2) * (smooth(i+1,j) + smooth(i,j))/2.0 * alpha/(hy*hy);
-      sum = xm + xp + ym + yp;
-
-
-
-      // compute du
-      // data terms
-      tmp = data(i,j) * (t(i,j)[3] * p(i,j)[1] + t(i,j)[4]);
-
-      // smoothness terms
-      tmp = tmp
-            - xm * (f(i,j-1)[0] + p(i,j-1)[0])
-            - xp * (f(i,j+1)[0] + p(i,j+1)[0])
-            - ym * (f(i-1,j)[0] + p(i-1,j)[0])
-            - yp * (f(i+1,j)[0] + p(i+1,j)[0])
-            + sum * f(i,j)[0];
-
-      // normalization
-      tmp = tmp /(- data(i,j) * t(i,j)[0] - sum);
-      p(i,j)[0] = (1.0-omega) * p(i,j)[0] + omega * tmp;
-
-
-      // same for dv
-      // data terms
-      tmp = data(i,j) * (t(i,j)[3] * p(i,j)[0] + t(i,j)[5]);
-
-      // smoothness terms
-      tmp = tmp
-            - xm * (f(i,j-1)[1] + p(i,j-1)[1])
-            - xp * (f(i,j+1)[1] + p(i,j+1)[1])
-            - ym * (f(i-1,j)[1] + p(i-1,j)[1])
-            - yp * (f(i+1,j)[1] + p(i+1,j)[1])
-            + sum * f(i,j)[1];
-
-      // normalization
-      tmp = tmp /(- data(i,j) * t(i,j)[1] - sum);
-      p(i,j)[1] = (1.0-omega) * p(i,j)[1] + omega * tmp;
-
-    }
-  }
-
-}
-
-
-
-void Brox_step_aniso_smooth(const cv::Mat_<cv::Vec6d> &t,
+void Brox_step_aniso_smooth_old(const cv::Mat_<cv::Vec6d> &t,
                const cv::Mat_<cv::Vec2d> &f,
                cv::Mat_<cv::Vec2d> &p,
                std::unordered_map<std::string, parameter> &parameters,
@@ -286,9 +225,11 @@ void Brox_step_aniso_smooth(const cv::Mat_<cv::Vec6d> &t,
 
 
 
-void Brox_step_aniso_smooth2(const cv::Mat_<cv::Vec6d> &t,
+void Brox_step_aniso_smooth(const cv::Mat_<cv::Vec6d> &t,
                const cv::Mat_<cv::Vec2d> &f,
                cv::Mat_<cv::Vec2d> &p,
+               cv::Mat_<double> &data,
+               cv::Mat_<cv::Vec3d> &smooth,
                std::unordered_map<std::string, parameter> &parameters,
                double hx,
                double hy){
@@ -299,13 +240,6 @@ void Brox_step_aniso_smooth2(const cv::Mat_<cv::Vec6d> &t,
 
   // helper variables
   double xm, xp, ym, yp, sum, tmp;
-
-  // compute the smoothness terms
-  //cv::Mat_<double> smooth = computeSmoothnessTerm(f, p, hx, hy);
-  cv::Mat_<double> data(p.size());
-  cv::Mat_<cv::Vec3d> smooth(p.size());
-  computeDataTerm(p, t, data);
-  computeAnisotropicSmoothnessTerm(f, p, smooth, hx, hy);
 
   // update partial flow field
   for (int i = 1; i < p.rows - 1; i++){
@@ -384,47 +318,6 @@ void Brox_step_aniso_smooth2(const cv::Mat_<cv::Vec6d> &t,
     }
   }
 
-}
-
-
-
-
-
-
-void computeSmoothnessTerm(const cv::Mat_<cv::Vec2d> &f, const cv::Mat_<cv::Vec2d> &p, cv::Mat_<double> &smooth, double hx, double hy){
-  cv::Mat fc[2], pc[2];
-  cv::Mat flow_u, flow_v, ux, uy, vx, vy, kernel;
-  double tmp=0;
-
-  // split flowfield in components
-  cv::split(f, fc);
-  flow_u = fc[0];
-  flow_v = fc[1];
-
-  // split partial flowfield in components
-  cv::split(p, pc);
-  flow_u = flow_u + pc[0];
-  flow_v = flow_v + pc[1];
-
-  //std::cout << flow_u.at<cv::Vec2d>(10,10) << ":" << flow_v.at<cv::Vec2d>(10,10) << std::endl;
-
-  // derivates in y-direction
-  kernel = (cv::Mat_<double>(3,1) << -1, 0, 1);
-  cv::filter2D(flow_u, uy, CV_64F, kernel * 1.0/(2*hy), cv::Point(-1,-1), 0, cv::BORDER_REPLICATE);
-  cv::filter2D(flow_v, vy, CV_64F, kernel * 1.0/(2*hy), cv::Point(-1,-1), 0, cv::BORDER_REPLICATE);
-
-  // derivates in x-dirction
-  kernel = (cv::Mat_<double>(1,3) << -1, 0, 1);
-  cv::filter2D(flow_u, ux, CV_64F, kernel * 1.0/(2*hx), cv::Point(-1,-1), 0, cv::BORDER_REPLICATE);
-  cv::filter2D(flow_v, vx, CV_64F, kernel * 1.0/(2*hx), cv::Point(-1,-1), 0, cv::BORDER_REPLICATE);
-
-  for (int i = 0; i < p.rows; i++){
-    for (int j = 0; j < p.cols; j++){
-      tmp = ux.at<double>(i,j) * ux.at<double>(i,j) + uy.at<double>(i,j) * uy.at<double>(i,j);
-      tmp = tmp + vx.at<double>(i,j) * vx.at<double>(i,j) + vy.at<double>(i,j) * vy.at<double>(i,j);
-      smooth(i,j) = L1dot(tmp);
-    }
-  }
 }
 
 

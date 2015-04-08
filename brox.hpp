@@ -13,11 +13,13 @@ void computeFlowField(const cv::Mat &image1, const cv::Mat &image2, std::unorder
 void Brox_step_aniso_smooth(const cv::Mat_<cv::Vec6d> &t,
                const cv::Mat_<cv::Vec2d> &f,
                cv::Mat_<cv::Vec2d> &p,
+               cv::Mat_<double> &data,
+               cv::Mat_<cv::Vec3d> &smooth,
                std::unordered_map<std::string, parameter> &parameters,
                double hx,
                double hy);
 
-void Brox_step_aniso_smooth2(const cv::Mat_<cv::Vec6d> &t,
+void Brox_step_aniso_smooth_old(const cv::Mat_<cv::Vec6d> &t,
               const cv::Mat_<cv::Vec2d> &f,
               cv::Mat_<cv::Vec2d> &p,
               std::unordered_map<std::string, parameter> &parameters,
@@ -27,9 +29,12 @@ void Brox_step_aniso_smooth2(const cv::Mat_<cv::Vec6d> &t,
 void Brox_step_iso_smooth(const cv::Mat_<cv::Vec6d> &t,
                const cv::Mat_<cv::Vec2d> &f,
                cv::Mat_<cv::Vec2d> &p,
+               cv::Mat_<double> &data,
+               cv::Mat_<double> &smooth,
                std::unordered_map<std::string, parameter> &parameters,
                double hx,
                double hy);
+
 
 void computeAnisotropicSmoothnessTerm(const cv::Mat_<cv::Vec2d> &f, const cv::Mat_<cv::Vec2d> &p, cv::Mat_<cv::Vec3d> &smooth, double hx, double hy);
 void computeSmoothnessTerm(const cv::Mat_<cv::Vec2d> &f, const cv::Mat_<cv::Vec2d> &p, cv::Mat_<double> &smooth, double hx, double hy);
