@@ -11,7 +11,36 @@
 
 void setupParameters(std::unordered_map<std::string, parameter> &parameters);
 void computeFlowField(const cv::Mat &image1, const cv::Mat &image2, std::unordered_map<std::string, parameter> &parameters, cv::Mat_<cv::Vec2d> &flowfield);
-void HS_Stepfunction(const cv::Mat_<cv::Vec6d> &t, cv::Mat_<cv::Vec2d> &flowfield, const std::unordered_map<std::string, parameter> &parameters);
+void HS_Stepfunction(const cv::Mat_<cv::Vec6d> &t,
+                     cv::Mat_<cv::Vec2d> &flowfield_p,
+                     cv::Mat_<cv::Vec2d> &flowfield_m,
+                     cv::Mat_<double> &phi,
+                     const std::unordered_map<std::string, parameter> &parameters);
+
+void updateU(cv::Mat_<cv::Vec2d> &flowfield,
+            cv::Mat_<double> &phi,
+            const cv::Mat_<cv::Vec6d> &t,
+            const std::unordered_map<std::string, parameter> &parameters,
+            double h,
+            int sign);
+
+void updateV(cv::Mat_<cv::Vec2d> &flowfield,
+               cv::Mat_<double> &phi,
+               const cv::Mat_<cv::Vec6d> &t,
+               const std::unordered_map<std::string, parameter> &parameters,
+               double h,
+               int sign);
+
+void updatePhi(cv::Mat_<cv::Vec2d> &flowfield_p,
+              cv::Mat_<cv::Vec2d> &flowfield_m,
+              cv::Mat_<double> &phi,
+              const cv::Mat_<cv::Vec6d> &t,
+              const std::unordered_map<std::string, parameter> &parameters,
+              double h);
+
+double phi_norm(cv::Mat_<double> &phix, cv::Mat_<double> &phiy, int i, int j);
+double H(double x);
+double Hdot(double x);
 
 
 #endif
