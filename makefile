@@ -12,4 +12,4 @@ brox_aniso:
 	$(COMPILER) $(FLAGS) $(LIBS) main.cpp tensor_computation.cpp brox_aniso.cpp -o brox_aniso
 
 hornschunck_separation:
-	$(COMPILER) $(FLAGS) $(LIBS) main.cpp tensor_computation.cpp hornschunck_separation.cpp -o hornschunck_separation
+	$(COMPILER) $(FLAGS) $(LIBS) main_separation.cpp tensor_computation.cpp hornschunck_separation.cpp -o hornschunck_separation

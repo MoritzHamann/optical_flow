@@ -15,6 +15,10 @@ void setupParameters(std::unordered_map<std::string, parameter> &parameters){
   parameter kappa = {"kappa", 25, 100, 100};
   parameter beta = {"beta", 4, 1000, 100};
   parameter deltat = {"deltat", 5, 100, 100};
+  parameter alpha_sep = {"alpha_sep", 10, 50, 1};
+  parameter gamma_sep = {"gamma_sep", 500, 1000, 1000};
+  parameter maxiter_sep = {"maxiter_sep", 200, 2000, 1};
+
 
   parameters.insert(std::make_pair<std::string, parameter>(alpha.name, alpha));
   parameters.insert(std::make_pair<std::string, parameter>(omega.name, omega));
@@ -24,11 +28,14 @@ void setupParameters(std::unordered_map<std::string, parameter> &parameters){
   parameters.insert(std::make_pair<std::string, parameter>(kappa.name, kappa));
   parameters.insert(std::make_pair<std::string, parameter>(beta.name, beta));
   parameters.insert(std::make_pair<std::string, parameter>(deltat.name, deltat));
+  parameters.insert(std::make_pair<std::string, parameter>(alpha_sep.name, alpha_sep));
+  parameters.insert(std::make_pair<std::string, parameter>(gamma_sep.name, gamma_sep));
+  parameters.insert(std::make_pair<std::string, parameter>(maxiter_sep.name, maxiter_sep));
 }
 
 
 void computeFlowField(const cv::Mat &image1, const cv::Mat &image2, std::unordered_map<std::string, parameter> &parameters,
-                         cv::Mat_<cv::Vec2d> &flowfield){
+                         cv::Mat_<cv::Vec2d> &flowfield, cv::Mat_<double> &phi){
 
   // convert images into 64 bit floating point images
   cv::Mat i1, i2;
@@ -50,12 +57,10 @@ void computeFlowField(const cv::Mat &image1, const cv::Mat &image2, std::unorder
   flowfield.create(i1.size());
   cv::Mat_<cv::Vec2d> flowfield_p(i1.rows, i1.cols);
   cv::Mat_<cv::Vec2d> flowfield_m(i1.rows, i1.cols);
-  cv::Mat_<double> phi(i1.rows, i1.cols);
 
   flowfield = cv::Vec2d(0,0);
   flowfield_p = cv::Vec2d(0,0);
   flowfield_m = cv::Vec2d(0,0);
-  phi = 0;
 
   cv::copyMakeBorder(flowfield, flowfield, 1, 1, 1, 1, cv::BORDER_CONSTANT, 0);
   cv::copyMakeBorder(flowfield_p, flowfield_p, 1, 1, 1, 1, cv::BORDER_CONSTANT, 0);
@@ -74,6 +79,7 @@ void computeFlowField(const cv::Mat &image1, const cv::Mat &image2, std::unorder
     }
   }
   flowfield = flowfield(cv::Rect(1,1,image1.cols, image1.rows));
+  phi = phi(cv::Rect(1,1,image1.cols, image1.rows));
 }
 
 

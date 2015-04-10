@@ -7,9 +7,6 @@
 #include <unordered_map>
 #include "tensor_computation.hpp"
 
-void setupParameters(std::unordered_map<std::string, parameter> &parameters);
-void computeFlowField(const cv::Mat &image1, const cv::Mat &image2, std::unordered_map<std::string, parameter> &parameters, cv::Mat_<cv::Vec2d> &flowfield);
-
 void Brox_step_aniso_smooth(const cv::Mat_<cv::Vec6d> &t,
                const cv::Mat_<cv::Vec2d> &f,
                cv::Mat_<cv::Vec2d> &p,
