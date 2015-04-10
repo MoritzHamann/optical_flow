@@ -47,14 +47,17 @@ void computeFlowField(const cv::Mat &image1, const cv::Mat &image2, std::unorder
   cv::Mat_<cv::Vec6d> t = (1.0 - gamma) * ComputeBrightnessTensor(i1, i2, 1, 1) + gamma * ComputeGradientTensor(i1, i2, 1, 1);
 
   // create flowfield
+  flowfield.create(i1.size());
   cv::Mat_<cv::Vec2d> flowfield_p(i1.rows, i1.cols);
   cv::Mat_<cv::Vec2d> flowfield_m(i1.rows, i1.cols);
   cv::Mat_<double> phi(i1.rows, i1.cols);
 
+  flowfield = cv::Vec2d(0,0);
   flowfield_p = cv::Vec2d(0,0);
   flowfield_m = cv::Vec2d(0,0);
   phi = 0;
 
+  cv::copyMakeBorder(flowfield, flowfield, 1, 1, 1, 1, cv::BORDER_CONSTANT, 0);
   cv::copyMakeBorder(flowfield_p, flowfield_p, 1, 1, 1, 1, cv::BORDER_CONSTANT, 0);
   cv::copyMakeBorder(flowfield_m, flowfield_m, 1, 1, 1, 1, cv::BORDER_CONSTANT, 0);
   cv::copyMakeBorder(phi, phi, 1, 1, 1, 1, cv::BORDER_CONSTANT, 0);
@@ -65,6 +68,11 @@ void computeFlowField(const cv::Mat &image1, const cv::Mat &image2, std::unorder
   }
 
   // combine flowfield_p and flowfield_m depending on phi
+  for (int i = 0; i < flowfield.rows; i++){
+    for (int j = 0; j < flowfield.cols; j++){
+      flowfield(i,j) = (phi(i,j) > 0) ? flowfield_p(i,j) : flowfield_m(i,j);
+    }
+  }
   flowfield = flowfield(cv::Rect(1,1,image1.cols, image1.rows));
 }
 
