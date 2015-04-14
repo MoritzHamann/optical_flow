@@ -14,17 +14,18 @@
 int main(int argc, char *argv[]){
 
   // make sure we have enough commandline arguments
-  if (argc < 3){
-    std::cout << "use parameters: filename1, filename2, (filenametruth)" << std::endl;;
+  if (argc < 4){
+    std::cout << "use parameters: filename1, filename2, initialflowfilename,(filenametruth)" << std::endl;;
     std::exit(1);
   }
 
   // get the filenames
   std::string filename1 (argv[1]);
   std::string filename2 (argv[2]);
+  std::string initialflowfilename(argv[3]);
   std::string truthfilename;
-  if (argc > 3){
-    truthfilename = argv[3];
+  if (argc > 4){
+    truthfilename = argv[4];
   } else {
     truthfilename = "";
   }
@@ -41,6 +42,12 @@ int main(int argc, char *argv[]){
     std::cout << "image2 not found" << std::endl;
     std::exit(1);
   }
+
+  cv::Mat_<cv::Vec2d> initialflow;
+  cv::FileStorage f(initialflowfilename, cv::FileStorage::READ);
+  f["flowfield"] >> initialflow;
+  f.release();
+
 
   cv::Mat_<cv::Vec2d> truth;
   // load truthfile
@@ -59,7 +66,11 @@ int main(int argc, char *argv[]){
 
   // create flowfield
   cv::Mat_<cv::Vec2d> flowfield(image1.size());
-  flowfield = flowfield * 0;
+  flowfield = cv::Vec2d(0,0);
+
+  // create level set function
+  cv::Mat_<double> phi(image1.size());
+  phi = 0;
 
   // create image for display and helper matrixes
   cv::Mat displayimage(image1.rows, image1.cols + flowfield.cols, CV_8UC3);
@@ -77,12 +88,12 @@ int main(int argc, char *argv[]){
     cv::Mat left(displayimage, cv::Rect(0, 0, image1.cols, image1.rows));
     cv::Mat right(displayimage, cv::Rect(image1.cols, 0, image1.cols, image1.rows));
     cv::cvtColor(image1, left, CV_GRAY2RGB);
-    right = right * 0;
     computeColorFlowField(flowfield, right);
-    computeColorFlowField((flowfield-truth), error);
+    computeColorFlowFieldError((flowfield-truth), error);
     cv::imshow("error", error);
 
     cv::imshow(WINDOW_NAME, displayimage);
+
 
     keyCode = cv::waitKey();
     // quit on ESC Key
@@ -94,16 +105,12 @@ int main(int argc, char *argv[]){
     if (keyCode == 13){
 
       // initial segmentation
-      initial_segmentation(image1, image2, phi, parameters)
-      computeSegmentationDisplay(phi, image1, segmentation);
-      cv::imshow("segmentation", segmentation);
-      keyCode = cv::waitKey();
-      if (keyCode == 27){
-        continue;
-      }
-
+      initial_segmentation(initialflow, phi, parameters);
+      flowfield = initialflow.clone();
 
       computeFlowField(image1, image2, parameters, flowfield, phi);
+      computeSegmentationImage(phi, image1, segmentation);
+      cv::imshow("segmentation", segmentation);
 
       std::cout << std::endl << "recomputed flow with:" << std::endl;
       for (auto i: parameters){
@@ -113,6 +120,7 @@ int main(int argc, char *argv[]){
       if (truthfilename != ""){
         std::cout << "AAE: " << CalcAngularError(flowfield, truth) << std::endl;
       }
+
     }
   }
 }

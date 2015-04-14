@@ -5,6 +5,28 @@
   * @param cv::Mat f Current Flowfield
   * @return cv::Mat A RGB image of the flowfield, visualized with hsv conversion
 */
+void computeColorFlowFieldError(const cv::Mat_<cv::Vec2d> &f, cv::Mat &img){
+  // helper Mats
+  cv::Mat flowfieldcomponents[2];
+  cv::Mat magnitude, angle, hsv, _hsv[3];
+  _hsv[2] = cv::Mat::ones(f.size(), CV_64F) * 255;
+
+  // compute color image from flowfield using hsv
+  split(f, flowfieldcomponents);
+  cv::cartToPolar(flowfieldcomponents[0], flowfieldcomponents[1], magnitude, angle, true);
+  double max = 1;
+  cv::minMaxIdx(magnitude, NULL, &max);
+  if (max > 0){
+    magnitude = magnitude * 1.0/max;
+  }
+  _hsv[0] = angle;
+  _hsv[1] = magnitude;
+  cv::merge(_hsv, 3, hsv);
+  hsv.convertTo(hsv, CV_32FC3);     // cannot convert directly to CV_8UC3, because max(angle) could be 360 degrees
+  cvtColor(hsv, hsv, CV_HSV2BGR);
+  hsv.convertTo(img, CV_8UC3);
+}
+
 void computeColorFlowField(const cv::Mat_<cv::Vec2d> &f, cv::Mat &img){
   // helper Mats
   cv::Mat flowfieldcomponents[2];
@@ -23,7 +45,7 @@ void computeColorFlowField(const cv::Mat_<cv::Vec2d> &f, cv::Mat &img){
   _hsv[2] = magnitude;
   cv::merge(_hsv, 3, hsv);
   hsv.convertTo(hsv, CV_32FC3);     // cannot convert directly to CV_8UC3, because max(angle) could be 360 degrees
-  cvtColor(hsv, hsv, CV_HSV2RGB);
+  cvtColor(hsv, hsv, CV_HSV2BGR);
   hsv.convertTo(img, CV_8UC3);
 }
 
@@ -191,7 +213,6 @@ void computeColorFlowField2(const cv::Mat_<cv::Vec2d> &flowfield, cv::Mat &img){
 
 
 double CalcAngularError(const cv::Mat_<cv::Vec2d> &flowfield, const cv::Mat_<cv::Vec2d> truth){
-  //cv::Mat_<cv::Vec2d> flowfield = f;
   double amount = 0;
   double tmp1 = 0;
   double tmp2 = 0;
@@ -219,4 +240,17 @@ double CalcAngularError(const cv::Mat_<cv::Vec2d> &flowfield, const cv::Mat_<cv:
   }
 
   return sum_ang / amount;
+}
+
+
+void computeSegmentationImage(const cv::Mat_<double> &phi, const cv::Mat_<uchar> &image1, cv::Mat &segmentation){
+  segmentation.create(phi.size(), CV_8U);
+  for (int i = 0; i < phi.rows; i++){
+    for (int j = 0; j < phi.cols; j++){
+      segmentation.at<uchar>(i,j) = (phi(i,j) > 0) ? 254 : 0;
+      if (std::isnan(segmentation.at<uchar>(i,j)) || !std::isfinite(segmentation.at<uchar>(i,j))){
+        std::cout << "error segementation" << std::endl;
+      }
+    }
+  }
 }

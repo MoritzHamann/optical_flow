@@ -7,6 +7,7 @@
 #include <unordered_map>
 #include <opencv2/core/core.hpp>
 #include <iostream>
+#include "misc.hpp"
 
 
 void setupParameters(std::unordered_map<std::string, parameter> &parameters);
@@ -38,7 +39,7 @@ void updatePhi(cv::Mat_<cv::Vec2d> &flowfield_p,
               const std::unordered_map<std::string, parameter> &parameters,
               double h);
 
-double phi_norm(cv::Mat_<double> &phix, cv::Mat_<double> &phiy, int i, int j);
+double phi_norm(cv::Mat_<double> &phix, cv::Mat_<double> &phiy, int i, int j, int offset_i, int offset_j);
 double H(double x);
 double Hdot(double x);
 
