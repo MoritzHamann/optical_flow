@@ -441,12 +441,6 @@ void updatePhi(cv::Mat_<cv::Vec2d> &flowfield_p,
 
 }
 
-double phi_norm(cv::Mat_<double> &phix, cv::Mat_<double> &phiy, int i, int j, int offset_i, int offset_j){
-  double tmp = phix(i,j)*phix(i,j) + phiy(i,j)*phiy(i,j);
-  double tmp2 = phix(i+offset_i,j+offset_j) * phix(i+offset_i,j+offset_j) + phiy(i+offset_i,j+offset_j) * phiy(i+offset_i,j+offset_j);
-  if (tmp <= 0.0 || tmp2 <= 0.0){ return 0; }
-  return std::sqrt(1.0/tmp)+std::sqrt(1.0/tmp2);
-}
 
 double H(double x){
   return 0.5 * (1 + (2.0/M_PI)*std::atan(x/DELTA));
