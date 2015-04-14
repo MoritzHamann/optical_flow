@@ -13,3 +13,6 @@ brox_aniso:
 
 hornschunck_separation:
 	$(COMPILER) $(FLAGS) $(LIBS) main_separation.cpp misc.cpp initial_separation.cpp tensor_computation.cpp hornschunck_separation.cpp -o hornschunck_separation
+
+brox_iso_separation:
+	$(COMPILER) $(FLAGS) $(LIBS) main_separation.cpp misc.cpp initial_separation.cpp tensor_computation.cpp brox_iso_separation.cpp -o brox_iso_separation
