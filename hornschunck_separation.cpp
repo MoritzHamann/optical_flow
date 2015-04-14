@@ -112,12 +112,12 @@ void HS_Stepfunction(const cv::Mat_<cv::Vec6d> &t,
 
   double h = 1;
 
-  updateU(flowfield_p, phi, t, parameters, h, 1);
-  updateU(flowfield_m, phi, t, parameters, h, -1);
+  updateU(flowfield_p, phi, t, parameters, h, 1.0);
+  updateU(flowfield_m, phi, t, parameters, h, -1.0);
 
 
-  updateV(flowfield_p, phi, t, parameters, h, 1);
-  updateV(flowfield_m, phi, t, parameters, h, -1);
+  updateV(flowfield_p, phi, t, parameters, h, 1.0);
+  updateV(flowfield_m, phi, t, parameters, h, -1.0);
 
 }
 
@@ -127,7 +127,7 @@ void updateU(cv::Mat_<cv::Vec2d> &flowfield,
              const cv::Mat_<cv::Vec6d> &t,
              const std::unordered_map<std::string, parameter> &parameters,
              double h,
-             int sign){
+             double sign){
 
   // helper variables
   double xm, xp, ym, yp, sum;
@@ -189,7 +189,7 @@ void updateV(cv::Mat_<cv::Vec2d> &flowfield,
                const cv::Mat_<cv::Vec6d> &t,
                const std::unordered_map<std::string, parameter> &parameters,
                double h,
-               int sign){
+               double sign){
 
    // helper variables
    double xm, xp, ym, yp, sum;

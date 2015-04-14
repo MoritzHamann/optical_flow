@@ -197,12 +197,15 @@ void Brox_step_iso_smooth(const cv::Mat_<cv::Vec6d> &t,
 }
 
 
-void updateU(cv::Mat_<cv::Vec2d> &flowfield,
-             cv::Mat_<double> &phi,
+void updateU(const cv::Mat_<cv::Vec2d> &f,
+             cv::Mat_<cv::Vec2d> &p,
+             const cv::Mat_<double> &phi,
+             const cv::Mat_<double> data,
+             const cv::Mat_<double> smooth,
              const cv::Mat_<cv::Vec6d> &t,
              const std::unordered_map<std::string, parameter> &parameters,
              double h,
-             int sign){
+             double sign){
 
   // helper variables
   double xm, xp, ym, yp, sum;
@@ -217,40 +220,46 @@ void updateU(cv::Mat_<cv::Vec2d> &flowfield,
       if (phi(i,j)*sign > 0){
         // pixel is in the segment
 
-        // test for borders
-        xp =  (j < flowfield.cols-2) * alpha/(h*h) * (H(phi(i,j+1)*sign) + H(phi(i,j)*sign))/2.0;
-        xm =  (j > 1) * alpha/(h*h) * (H(phi(i,j-1)*sign) + H(phi(i,j)*sign))/2.0;
-        yp =  (i < flowfield.rows-2) * alpha/(h*h) * (H(phi(i+1,j)*sign) + H(phi(i,j)*sign))/2.0;
-        ym =  (i > 1) * alpha/(h*h) * (H(phi(i-1,j)*sign) + H(phi(i,j)*sign))/2.0;
-        sum = xp + xm + yp + ym;
+        xm = (j > 1) * (L1dot(smooth(i,j-1)) + L1dot(smooth(i,j)))/2.0 * (H(phi(i,j-1)*sign) + H(phi(i,j)*sign))/2.0 * alpha/(hx*hx);
+        xp = (j < p.cols - 2) * (L1dot(smooth(i,j+1)) + L1dot(smooth(i,j)))/2.0 * (H(phi(i,j+1)*sign) + H(phi(i,j)*sign))/2.0 * alpha/(hx*hx);
+        ym = (i > 1) * (L1dot(smooth(i-1,j)) + L1dot(smooth(i,j)))/2.0 * (H(phi(i-1,j)*sign) + H(phi(i,j)*sign))/2.0 * alpha/(hy*hy);
+        yp = (i < p.rows - 2) * (L1dot(smooth(i+1,j)) + L1dot(smooth(i,j)))/2.0 * (H(phi(i+1,j)*sign) + H(phi(i,j)*sign))/2.0 * alpha/(hy*hy);
+        sum = xm + xp + ym + yp;
 
-        // u component
-        flowfield(i,j)[0] = (1.0-omega) * flowfield(i,j)[0];
-        flowfield(i,j)[0] += omega * (
-          - H(kappa * phi(i,j) *sign) * (t(i, j)[4] + t(i, j)[3] * flowfield(i,j)[1])
-          + yp * flowfield(i+1,j)[0]
-          + ym * flowfield(i-1,j)[0]
-          + xp * flowfield(i,j+1)[0]
-          + xm * flowfield(i,j-1)[0]
-        )/(H(kappa * phi(i,j)*sign) * t(i, j)[0] + sum);
+
+        // compute du
+        // data terms
+        tmp = H(kappa * phi(i,j) * sign) * L1dot(data(i,j)) * (t(i,j)[3] * p(i,j)[1] + t(i,j)[4]);
+
+        // smoothness terms
+        tmp = tmp
+              - xm * (f(i,j-1)[0] + p(i,j-1)[0])
+              - xp * (f(i,j+1)[0] + p(i,j+1)[0])
+              - ym * (f(i-1,j)[0] + p(i-1,j)[0])
+              - yp * (f(i+1,j)[0] + p(i+1,j)[0])
+              + sum * f(i,j)[0];
+
+        // normalization
+        tmp = tmp /(- H(kappa * phi(i,j) *sign) * L1dot(data(i,j)) * t(i,j)[0] - sum);
+        p(i,j)[0] = (1.0-omega) * p(i,j)[0] + omega * tmp;
 
 
       } else {
         // for now use smoothess term here
 
         // test for borders
-        xp =  (j < flowfield.cols-2) * 1.0/(h*h);
-        xm =  (j > 1) * 1.0/(h*h);
-        yp =  (i < flowfield.rows-2) * 1.0/(h*h);
-        ym =  (i > 1) * 1.0/(h*h);
+        xp =  (j < flowfield.cols-2) * 1.0/(h*h) * (L1dot(smooth(i,j-1)) + L1dot(smooth(i,j)))/2.0;
+        xm =  (j > 1) * 1.0/(h*h) * (L1dot(smooth(i,j+1)) + L1dot(smooth(i,j)))/2.0;
+        yp =  (i < flowfield.rows-2) * 1.0/(h*h) * (L1dot(smooth(i-1,j)) + L1dot(smooth(i,j)))/2.0;
+        ym =  (i > 1) * 1.0/(h*h) * (L1dot(smooth(i+1,j)) + L1dot(smooth(i,j)))/2.0;
         sum = xp + xm + yp + ym;
 
-        flowfield(i,j)[0] = (1.0-omega) * flowfield(i,j)[0];
-        flowfield(i,j)[0] += omega * (
-          + yp * flowfield(i+1,j)[0]
-          + ym * flowfield(i-1,j)[0]
-          + xp * flowfield(i,j+1)[0]
-          + xm * flowfield(i,j-1)[0]
+        p(i,j)[0] = (1.0-omega) * p(i,j)[0];
+        p(i,j)[0] += omega * (
+          + yp * p(i+1,j)[0]
+          + ym * p(i-1,j)[0]
+          + xp * p(i,j+1)[0]
+          + xm * p(i,j-1)[0]
         )/(sum);
 
       }
@@ -259,12 +268,15 @@ void updateU(cv::Mat_<cv::Vec2d> &flowfield,
 }
 
 
-void updateV(cv::Mat_<cv::Vec2d> &flowfield,
-               cv::Mat_<double> &phi,
-               const cv::Mat_<cv::Vec6d> &t,
-               const std::unordered_map<std::string, parameter> &parameters,
-               double h,
-               int sign){
+void updateV(const cv::Mat_<cv::Vec2d> &f,
+             cv::Mat_<cv::Vec2d> &p,
+             const cv::Mat_<double> &phi,
+             const cv::Mat_<double> data,
+             const cv::Mat_<double> smooth,
+             const cv::Mat_<cv::Vec6d> &t,
+             const std::unordered_map<std::string, parameter> &parameters,
+             double h,
+             double sign){
 
    // helper variables
    double xm, xp, ym, yp, sum;
@@ -279,39 +291,45 @@ void updateV(cv::Mat_<cv::Vec2d> &flowfield,
        if (phi(i,j)*sign > 0){
          // pixel is in the segment
 
-        // test for borders
-        xp =  (j < flowfield.cols-2) * alpha/(h*h) * (H(phi(i,j+1)*sign) + H(phi(i,j)*sign))/2.0;
-        xm =  (j > 1) * alpha/(h*h) * (H(phi(i,j-1)*sign) + H(phi(i,j)*sign))/2.0;
-        yp =  (i < flowfield.rows-2) * alpha/(h*h) * (H(phi(i+1,j)*sign) + H(phi(i,j)*sign))/2.0;
-        ym =  (i > 1) * alpha/(h*h) * (H(phi(i-1,j)*sign) + H(phi(i,j)*sign))/2.0;
-        sum = xp + xm + yp + ym;
+         xm = (j > 1) * (L1dot(smooth(i,j-1)) + L1dot(smooth(i,j)))/2.0 * (H(phi(i,j-1)*sign) + H(phi(i,j)*sign))/2.0 * alpha/(hx*hx);
+         xp = (j < p.cols - 2) * (L1dot(smooth(i,j+1)) + L1dot(smooth(i,j)))/2.0 * (H(phi(i,j+1)*sign) + H(phi(i,j)*sign))/2.0 * alpha/(hx*hx);
+         ym = (i > 1) * (L1dot(smooth(i-1,j)) + L1dot(smooth(i,j)))/2.0 * (H(phi(i-1,j)*sign) + H(phi(i,j)*sign))/2.0 * alpha/(hy*hy);
+         yp = (i < p.rows - 2) * (L1dot(smooth(i+1,j)) + L1dot(smooth(i,j)))/2.0 * (H(phi(i+1,j)*sign) + H(phi(i,j)*sign))/2.0 * alpha/(hy*hy);
+         sum = xm + xp + ym + yp;
 
-        // u component
-        flowfield(i,j)[1] = (1.0-omega) * flowfield(i,j)[1];
-        flowfield(i,j)[1] += omega * (
-          - H(kappa * phi(i,j) *sign) * (t(i, j)[5] + t(i, j)[3] * flowfield(i,j)[0])
-          + yp * flowfield(i+1,j)[1]
-          + ym * flowfield(i-1,j)[1]
-          + xp * flowfield(i,j+1)[1]
-          + xm * flowfield(i,j-1)[1]
-        )/(H(kappa * phi(i,j)*sign) * t(i, j)[1] + sum);
+
+         // compute du
+         // data terms
+         tmp = H(kappa * phi(i,j) * sign) * L1dot(data(i,j)) * (t(i,j)[3] * p(i,j)[0] + t(i,j)[5]);
+
+         // smoothness terms
+         tmp = tmp
+               - xm * (f(i,j-1)[1] + p(i,j-1)[1])
+               - xp * (f(i,j+1)[1] + p(i,j+1)[1])
+               - ym * (f(i-1,j)[1] + p(i-1,j)[1])
+               - yp * (f(i+1,j)[1] + p(i+1,j)[1])
+               + sum * f(i,j)[0];
+
+         // normalization
+         tmp = tmp /(- H(kappa * phi(i,j) *sign) * L1dot(data(i,j)) * t(i,j)[1] - sum);
+         p(i,j)[1] = (1.0-omega) * p(i,j)[1] + omega * tmp;
 
       } else {
         // pixel lies out of the segment
 
         // test for borders
-        xp =  (j < flowfield.cols-2) * 1.0/(h*h);
-        xm =  (j > 1) * 1.0/(h*h);
-        yp =  (i < flowfield.rows-2) * 1.0/(h*h);
-        ym =  (i > 1) * 1.0/(h*h);
+        xp =  (j < flowfield.cols-2) * 1.0/(h*h) * (L1dot(smooth(i,j-1)) + L1dot(smooth(i,j)))/2.0;
+        xm =  (j > 1) * 1.0/(h*h) * (L1dot(smooth(i,j+1)) + L1dot(smooth(i,j)))/2.0;
+        yp =  (i < flowfield.rows-2) * 1.0/(h*h) * (L1dot(smooth(i-1,j)) + L1dot(smooth(i,j)))/2.0;
+        ym =  (i > 1) * 1.0/(h*h) * (L1dot(smooth(i+1,j)) + L1dot(smooth(i,j)))/2.0;
         sum = xp + xm + yp + ym;
 
-        flowfield(i,j)[1] = (1.0-omega) * flowfield(i,j)[1];
-        flowfield(i,j)[1] += omega * (
-          + yp * flowfield(i+1,j)[1]
-          + ym * flowfield(i-1,j)[1]
-          + xp * flowfield(i,j+1)[1]
-          + xm * flowfield(i,j-1)[1]
+        p(i,j)[1] = (1.0-omega) * flowfield(i,j)[1];
+        p(i,j)[1] += omega * (
+          + yp * p(i+1,j)[1]
+          + ym * p(i-1,j)[1]
+          + xp * p(i,j+1)[1]
+          + xm * p(i,j-1)[1]
         )/(sum);
 
       }

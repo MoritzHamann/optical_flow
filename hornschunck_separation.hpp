@@ -23,14 +23,14 @@ void updateU(cv::Mat_<cv::Vec2d> &flowfield,
             const cv::Mat_<cv::Vec6d> &t,
             const std::unordered_map<std::string, parameter> &parameters,
             double h,
-            int sign);
+            double sign);
 
 void updateV(cv::Mat_<cv::Vec2d> &flowfield,
                cv::Mat_<double> &phi,
                const cv::Mat_<cv::Vec6d> &t,
                const std::unordered_map<std::string, parameter> &parameters,
                double h,
-               int sign);
+               double sign);
 
 void updatePhi(cv::Mat_<cv::Vec2d> &flowfield_p,
               cv::Mat_<cv::Vec2d> &flowfield_m,
