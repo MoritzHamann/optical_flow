@@ -9,8 +9,6 @@ void initial_segmentation(const cv::Mat_<cv::Vec2d> &flowfield,
                           const std::unordered_map<std::string, parameter> &parameters
                         ){
 
-  phi = 0;
-
   //segementFlowfield(flowfield, phi, parameters);
 
   for (int i = 0; i < phi.rows; i++){
@@ -22,6 +20,9 @@ void initial_segmentation(const cv::Mat_<cv::Vec2d> &flowfield,
       }
     }
   }
+
+  //phi = 1;
+  
 }
 
 

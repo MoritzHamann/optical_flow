@@ -109,7 +109,6 @@ int main(int argc, char *argv[]){
       flowfield = initialflow.clone();
 
       computeFlowField(image1, image2, parameters, flowfield, phi);
-      std::cout << phi << std::endl;
       computeSegmentationImage(phi, image1, segmentation);
       cv::imshow("segmentation", segmentation);
 
