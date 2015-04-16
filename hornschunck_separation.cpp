@@ -13,7 +13,7 @@ void setupParameters(std::unordered_map<std::string, parameter> &parameters){
   parameter gamma = {"gamma", 500, 1000, 1000};
   parameter maxiter = {"maxiter", 200, 400, 1};
   parameter kappa = {"kappa", 25, 100, 100};
-  parameter beta = {"beta", 4, 1000, 100};
+  parameter beta = {"beta", 100, 300, 10};
   parameter deltat = {"deltat", 25, 100, 100};
   parameter phi_iter = {"phi_iter", 10, 100, 1};
   parameter iter_flow_before_phi = {"iter_flow_before_phi", 10, 100, 1};
