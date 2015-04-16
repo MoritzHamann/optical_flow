@@ -87,12 +87,6 @@ void computeFlowField(const cv::Mat &image1, const cv::Mat &image2, std::unorder
       flowfield(i,j) = (phi(i,j) > 0) ? flowfield_p(i,j) : flowfield_m(i,j);
     }
   }
-  cv::Mat f_p, f_m;
-  computeColorFlowField(flowfield_p, f_p);
-  computeColorFlowField(flowfield_m, f_m);
-  cv::imshow("postive", f_p);
-  cv::imshow("negative", f_m);
-  //std::cout << phi << std::endl;
   flowfield = flowfield(cv::Rect(1,1,image1.cols, image1.rows));
   phi = phi(cv::Rect(1,1,image1.cols, image1.rows));
 }
@@ -139,7 +133,7 @@ void updateU(cv::Mat_<cv::Vec2d> &flowfield,
   for (int i = 1; i < flowfield.rows-1; i++){
     for (int j = 1; j < flowfield.cols-1; j++){
 
-      if (phi(i,j)*sign > 0){
+      //if (phi(i,j)*sign > 0){
         // pixel is in the segment
 
         // test for borders
@@ -160,7 +154,7 @@ void updateU(cv::Mat_<cv::Vec2d> &flowfield,
         )/(H(kappa * phi(i,j)*sign) * t(i, j)[0] + sum);
 
 
-      } else {
+      /*} else {
         // for now use smoothess term here
 
         // test for borders
@@ -178,7 +172,7 @@ void updateU(cv::Mat_<cv::Vec2d> &flowfield,
           + xm * flowfield(i,j-1)[0]
         )/(sum);
 
-      }
+      }*/
     }
   }
 }
@@ -201,7 +195,7 @@ void updateV(cv::Mat_<cv::Vec2d> &flowfield,
    for (int i = 1; i < flowfield.rows-1; i++){
      for (int j = 1; j < flowfield.cols-1; j++){
 
-       if (phi(i,j)*sign > 0){
+       //if (phi(i,j)*sign > 0){
          // pixel is in the segment
 
         // test for borders
@@ -221,7 +215,7 @@ void updateV(cv::Mat_<cv::Vec2d> &flowfield,
           + xm * flowfield(i,j-1)[1]
         )/(H(kappa * phi(i,j)*sign) * t(i, j)[1] + sum);
 
-      } else {
+      /*} else {
         // pixel lies out of the segment
 
         // test for borders
@@ -239,7 +233,7 @@ void updateV(cv::Mat_<cv::Vec2d> &flowfield,
           + xm * flowfield(i,j-1)[1]
         )/(sum);
 
-      }
+      }*/
     }
   }
 }
@@ -397,39 +391,19 @@ void updatePhi(cv::Mat_<cv::Vec2d> &flowfield_p,
 
 
       // terms with phi using semi-implicit scheme
-      // check on bondaries
-      /*
-      xm = (j > 1) * 0.5/(h*h) * phi_norm(phix,phiy,i,j,0,-1);
-      xp = (j < phi.cols-2) * 0.5/(h*h) * phi_norm(phix,phiy,i,j,0,1);
-      ym = (i > 1) * 0.5/(h*h) * phi_norm(phix,phiy,i,j,-1,0);
-      yp = (i < phi.rows-2) * 0.5/(h*h) * phi_norm(phix,phiy,i,j,1,0);
-      sum = xm + xp + ym + yp;
-
-      phi_update =  xm * (phi(i,j-1))
-                  + xp * (phi(i,j+1))
-                  + ym * (phi(i-1,j))
-                  + yp * (phi(i+1,j));
-
-
-      // update phi
-      phi(i,j) = phi(i,j) + deltat * (
-                  beta * Hdot(phi(i,j)) * phi_update
-                - kappa * Hdot(kappa * phi(i,j)) * data
-                - alpha * Hdot(phi(i,j)) * smooth);
-      phi(i,j) = phi(i,j)/(1.0+beta*Hdot(phi(i,j))*sum*deltat);*/
-
       // using the vese chan discretization
+      // also make sure that derivative on boundries is set to zero
       tmp = (j< phi.cols-2) * std::pow((phi(i,j+1) - phi(i,j))/h, 2) + (i>1)*(i<phi.rows-2)*std::pow((phi(i+1,j) - phi(i-1,j))/(2*h),2);
-      c1 = (tmp == 0) ? 0 : std::sqrt(1.0/tmp);
+      c1 = (tmp == 0 || j > phi.cols-2) ? 0 : std::sqrt(1.0/tmp);
 
       tmp = (j>1)*std::pow((phi(i,j) - phi(i,j-1))/h, 2) + (i<phi.rows-2)*(i>1)*(j>1)*std::pow((phi(i+1,j-1) - phi(i-1,j-1))/(2*h),2);
-      c2 = (tmp == 0) ? 0 : std::sqrt(1.0/tmp);
+      c2 = (tmp == 0 || j < 1) ? 0 : std::sqrt(1.0/tmp);
 
       tmp = (j>1)*(j<phi.cols-2)*std::pow((phi(i,j+1) - phi(i,j-1))/(2*h), 2) + (i<phi.rows-2)*std::pow((phi(i+1,j) - phi(i,j))/(h),2);
-      c3 = (tmp == 0) ? 0 : std::sqrt(1.0/tmp);
+      c3 = (tmp == 0 || i > phi.rows-2) ? 0 : std::sqrt(1.0/tmp);
 
       tmp = (i>1)*(j>1)*(j<phi.cols-2)*std::pow((phi(i-1,j+1) - phi(i-1,j-1))/(2*h), 2) + (i>1)*std::pow((phi(i,j) - phi(i-1,j))/(h),2);
-      c4 = (tmp == 0) ? 0 : std::sqrt(1.0/tmp);
+      c4 = (tmp == 0 || i < 1) ? 0 : std::sqrt(1.0/tmp);
 
       m = (deltat*Hdot(phi(i,j))*beta)/(h*h);
       c = 1+m*(c1+c2+c3+c4);
