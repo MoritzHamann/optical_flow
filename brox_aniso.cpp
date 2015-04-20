@@ -4,7 +4,8 @@
 */
 
 #include "brox.hpp"
-#define EPSILON 0.001
+const double EPSILON_D = 0.01 * 0.01;
+const double EPSILON_S = 0.01 * 0.01;
 
 void debug(std::string text){
   std::cout << text << std::endl;
@@ -15,14 +16,14 @@ void debug(std::string text){
   * Set up the parameters
 */
 void setupParameters(std::unordered_map<std::string, parameter> &parameters){
-  parameter alpha = {"alpha", 10, 100, 1};
+  parameter alpha = {"alpha", 8, 100, 1};
   parameter omega = {"omega", 195, 200, 100};
-  parameter sigma = {"sigma", 15, 100, 10};
-  parameter gamma = {"gamma", 500, 1000, 1000};
-  parameter maxiter = {"maxiter", 100, 1000, 1};
+  parameter sigma = {"sigma", 10, 100, 10};
+  parameter gamma = {"gamma", 990, 1000, 1000};
+  parameter maxiter = {"maxiter", 40, 1000, 1};
   parameter maxlevel = {"maxlevel", 4, 100, 1};
   parameter wrapfactor = {"wrapfactor", 95, 100, 100};
-  parameter nonlinear_step = {"nonlinear_step", 10, 150, 1};
+  parameter nonlinear_step = {"nonlinear_step", 3, 150, 1};
 
   parameters.insert(std::make_pair<std::string, parameter>(alpha.name, alpha));
   parameters.insert(std::make_pair<std::string, parameter>(omega.name, omega));
@@ -61,19 +62,13 @@ void computeFlowField(const cv::Mat &image1, const cv::Mat &image2, std::unorder
 
   // initialize parital and complete flowfield
   cv::Mat_<cv::Vec2d> partial(i1smoothed.size());
-  flowfield.create(i1smoothed.size());
   cv::Mat flowfield_wrap;
+  cv::Mat_<double> mask(i1smoothed.size());
+  
+  flowfield.create(i1smoothed.size());
   partial = cv::Vec2d(0,0);
   flowfield = cv::Vec2d(0,0);
-
-  // make a 2-channel matrix with each pixel with its coordinates as value (serves as basis for flowfield remapping)
-  cv::Mat remap_basis(image1.size(), CV_32FC2);
-  for (int i = 0; i < image1.rows; i++){
-    for (int j = 0; j < image1.cols; j++){
-      remap_basis.at<cv::Vec2f>(i,j)[0] = (float)j;
-      remap_basis.at<cv::Vec2f>(i,j)[1] = (float)i;
-    }
-  }
+  mask = 1;
 
   // loop for over levels
   for (int k = maxlevel; k >= 0; k--){
@@ -87,17 +82,17 @@ void computeFlowField(const cv::Mat &image1, const cv::Mat &image2, std::unorder
     cv::resize(i1smoothed, i1, cv::Size(0, 0), std::pow(wrapfactor, k), std::pow(wrapfactor, k), cv::INTER_AREA);
     cv::resize(i2smoothed, i2, cv::Size(0, 0), std::pow(wrapfactor, k), std::pow(wrapfactor, k), cv::INTER_AREA);
 
-    // resample flowfield to current level (for now using area resampling)
+    // resize flowfield to current level (for now using area resampling)
     cv::resize(flowfield, flowfield, i1.size(), 0, 0, cv::INTER_AREA);
     cv::resize(partial, partial, i1.size(), 0, 0, cv::INTER_AREA);
-
     flowfield = flowfield * wrapfactor;
 
-    // wrap image 2 with current flowfield
-    flowfield.convertTo(flowfield_wrap, CV_32FC2);
-    flowfield_wrap = flowfield_wrap + remap_basis(cv::Rect(0, 0, flowfield_wrap.cols, flowfield_wrap.rows));
-    cv::remap(i2, i2, flowfield_wrap, cv::Mat(), cv::INTER_LINEAR, cv::BORDER_REPLICATE, cv::Scalar(0));
-
+    // resize mask and set it to one
+    cv::resize(mask, mask, i1.size(), 0, 0, cv::INTER_AREA);
+    cv::copyMakeBorder(mask, mask, 1, 1, 1, 1, cv::BORDER_CONSTANT, 1);
+    mask = 1;
+    
+    remap_border(i2, flowfield, mask);
 
     // compute tensors
     cv::Mat_<cv::Vec6d> t = (1.0 - gamma) * ComputeBrightnessTensor(i1, i2, hy, hx) + gamma * ComputeGradientTensor(i1, i2, hx, hy);
@@ -120,7 +115,7 @@ void computeFlowField(const cv::Mat &image1, const cv::Mat &image2, std::unorder
         computeDataTerm(partial, t, data);
         computeAnisotropicSmoothnessTerm(flowfield, partial, smooth, hx, hy);
       }
-      Brox_step_aniso_smooth(t, flowfield, partial, data, smooth, parameters, hx, hy);
+      Brox_step_aniso_smooth(t, flowfield, partial, data, smooth, mask, parameters, hx, hy);
     }
 
     // add partial flowfield to complete flowfield
@@ -131,103 +126,12 @@ void computeFlowField(const cv::Mat &image1, const cv::Mat &image2, std::unorder
 
 
 
-
-
-
-
-void Brox_step_aniso_smooth_old(const cv::Mat_<cv::Vec6d> &t,
-               const cv::Mat_<cv::Vec2d> &f,
-               cv::Mat_<cv::Vec2d> &p,
-               std::unordered_map<std::string, parameter> &parameters,
-               double hx,
-               double hy){
-
-  // get parameters
-  double alpha = (double)parameters.at("alpha").value/parameters.at("alpha").divfactor;
-  double omega = (double)parameters.at("omega").value/parameters.at("omega").divfactor;
-
-  // helper variables
-  double xm, xp, ym, yp, sum, tmp;
-
-  // compute the smoothness terms
-  //cv::Mat_<double> smooth = computeSmoothnessTerm(f, p, hx, hy);
-  cv::Mat_<double> data(p.size());
-  cv::Mat_<cv::Vec3d> smooth(p.size());
-  computeDataTerm(p, t, data);
-  computeAnisotropicSmoothnessTerm(f, p, smooth, hx, hy);
-
-  // update partial flow field
-  for (int i = 1; i < p.rows - 1; i++){
-    for (int j = 1; j < p.cols - 1; j++){
-
-      // handle borders for terms on von Neumann neighboorhood
-      // isotropic part + anisotropic part
-
-      xm = (j > 1) * (smooth(i,j-1)[0] + smooth(i,j)[0])/2.0 * alpha/(hx*hx);
-      xp = (j < p.cols - 2) * (smooth(i,j+1)[0] + smooth(i,j)[0])/2.0 * alpha/(hx*hx);
-      ym = (i > 1) * (smooth(i-1,j)[2] + smooth(i,j)[2])/2.0 * alpha/(hy*hy);
-      yp = (i < p.rows - 2) * (smooth(i+1,j)[2] + smooth(i,j)[2])/2.0 * alpha/(hy*hy);
-      sum = xm + xp + ym + yp;
-
-      // compute du
-      // data terms
-      tmp = data(i,j) * (t(i,j)[3] * p(i,j)[1] + t(i,j)[4]);
-
-      // smoothness terms (von Neumann neighboorhood)
-      tmp = tmp
-            - xm * (f(i,j-1)[0] + p(i,j-1)[0])
-            - xp * (f(i,j+1)[0] + p(i,j+1)[0])
-            - ym * (f(i-1,j)[0] + p(i-1,j)[0])
-            - yp * (f(i+1,j)[0] + p(i+1,j)[0])
-            + sum * f(i,j)[0];
-
-      // remaining neighboorhoods
-      tmp += (j < p.cols - 2) * (i < p.rows - 2) * -alpha/(hx*hy) * smooth(i,j+1)[1] * (f(i+1,j+1)[0] + p(i+1,j+1)[0] - f(i,j+1)[0] - p(i,j+1)[0]);
-      tmp += (j > 1) * (i > 1) * -alpha/(hx*hy) * smooth(i,j-1)[1] * (f(i,j-1)[0] + p(i,j-1)[0] - f(i-1,j-1)[0] - p(i-1,j-1)[0]);
-      tmp += (j < p.cols - 2) * (i < p.rows - 2) * -alpha/(hx*hy) * smooth(i+1,j)[1] * (f(i+1,j+1)[0] + p(i+1,j+1)[0] - f(i+1,j)[0] - p(i+1,j)[0]);
-      tmp += (j > 1) * (i > 1) * -alpha/(hx*hy) * smooth(i-1,j)[1] * (f(i-1,j)[0] + p(i-1,j)[0] - f(i-1,j-1)[0] - p(i-1,j-1)[0]);
-
-
-      // normalization
-      tmp = tmp /(- data(i,j) * t(i,j)[0] - sum);
-      p(i,j)[0] = (1.0-omega) * p(i,j)[0] + omega * tmp;
-
-
-      // same for dv
-      // data terms
-      tmp = data(i,j) * (t(i,j)[3] * p(i,j)[0] + t(i,j)[5]);
-
-      // smoothness terms
-      tmp = tmp
-            - xm * (f(i,j-1)[1] + p(i,j-1)[1])
-            - xp * (f(i,j+1)[1] + p(i,j+1)[1])
-            - ym * (f(i-1,j)[1] + p(i-1,j)[1])
-            - yp * (f(i+1,j)[1] + p(i+1,j)[1])
-            + sum * f(i,j)[1];
-
-      // remaining neighboorhoods
-      tmp += (j < p.cols - 2) * (i < p.rows - 2) * -alpha/(hx*hy) * smooth(i,j+1)[1] * (f(i+1,j+1)[1] + p(i+1,j+1)[1] - f(i,j+1)[1] - p(i,j+1)[1]);
-      tmp += (j > 1) * (i > 1) * -alpha/(hx*hy) * smooth(i,j-1)[1] * (f(i,j-1)[1] + p(i,j-1)[1] - f(i-1,j-1)[1] - p(i-1,j-1)[1]);
-      tmp += (j < p.cols - 2) * (i < p.rows - 2) * -alpha/(hx*hy) * smooth(i+1,j)[1] * (f(i+1,j+1)[1] + p(i+1,j+1)[1] - f(i+1,j)[1] - p(i+1,j)[1]);
-      tmp += (j > 1) * (i > 1) * -alpha/(hx*hy) * smooth(i-1,j)[1] * (f(i-1,j)[1] + p(i-1,j)[1] - f(i-1,j-1)[1] - p(i-1,j-1)[1]);
-
-
-      // normalization
-      tmp = tmp /(- data(i,j) * t(i,j)[1] - sum);
-      p(i,j)[1] = (1.0-omega) * p(i,j)[1] + omega * tmp;
-
-    }
-  }
-
-}
-
-
-
 void Brox_step_aniso_smooth(const cv::Mat_<cv::Vec6d> &t,
                const cv::Mat_<cv::Vec2d> &f,
                cv::Mat_<cv::Vec2d> &p,
                cv::Mat_<double> &data,
                cv::Mat_<cv::Vec3d> &smooth,
+               cv::Mat_<double> &mask,
                std::unordered_map<std::string, parameter> &parameters,
                double hx,
                double hy){
@@ -254,7 +158,7 @@ void Brox_step_aniso_smooth(const cv::Mat_<cv::Vec6d> &t,
 
       // compute du
       // data terms
-      tmp = data(i,j) * (t(i,j)[3] * p(i,j)[1] + t(i,j)[4]);
+      tmp = mask(i,j) * data(i,j) * (t(i,j)[3] * p(i,j)[1] + t(i,j)[4]);
 
       // smoothness terms (von Neumann neighboorhood)
       tmp = tmp
@@ -279,13 +183,13 @@ void Brox_step_aniso_smooth(const cv::Mat_<cv::Vec6d> &t,
             (f(i,j+1)[0] + p(i,j+1)[0] + f(i-1,j+1)[0] + p(i-1,j+1)[0] - f(i,j-1)[0] - p(i,j-1)[0] - f(i-1,j-1)[0] - p(i-1,j-1)[0]);
 
       // normalization
-      tmp = tmp /(- data(i,j) * t(i,j)[0] - sum);
+      tmp = tmp /(- mask(i,j) * data(i,j) * t(i,j)[0] - sum);
       p(i,j)[0] = (1.0-omega) * p(i,j)[0] + omega * tmp;
 
 
       // same for dv
       // data terms
-      tmp = data(i,j) * (t(i,j)[3] * p(i,j)[0] + t(i,j)[5]);
+      tmp = mask(i,j) * data(i,j) * (t(i,j)[3] * p(i,j)[0] + t(i,j)[5]);
 
       // smoothness terms
       tmp = tmp
@@ -310,7 +214,7 @@ void Brox_step_aniso_smooth(const cv::Mat_<cv::Vec6d> &t,
             (f(i,j+1)[1] + p(i,j+1)[1] + f(i-1,j+1)[1] + p(i-1,j+1)[1] - f(i,j-1)[1] - p(i,j-1)[1] - f(i-1,j-1)[1] - p(i-1,j-1)[1]);
 
       // normalization
-      tmp = tmp /(- data(i,j) * t(i,j)[1] - sum);
+      tmp = tmp /(- mask(i,j) * data(i,j) * t(i,j)[1] - sum);
       p(i,j)[1] = (1.0-omega) * p(i,j)[1] + omega * tmp;
 
     }
@@ -356,15 +260,14 @@ void computeAnisotropicSmoothnessTerm(const cv::Mat_<cv::Vec2d> &f, const cv::Ma
       cv::eigen(tmparray, eigenvalues, eigenvectors);
 
       // scale eigenvalues
-      eigenvalues.at<double>(0) = L1dot(eigenvalues.at<double>(0));
-      eigenvalues.at<double>(1) = L1dot(eigenvalues.at<double>(1));
+      eigenvalues.at<double>(0) = L1dot(eigenvalues.at<double>(0), EPSILON_S);
+      eigenvalues.at<double>(1) = L1dot(eigenvalues.at<double>(1), EPSILON_S);
 
       // recompute array with scaled eigenvalues
       tmparray = eigenvectors.inv() * cv::Mat::diag(eigenvalues) * eigenvectors;
       smooth(i,j)[0] = tmparray.at<double>(0,0);
       smooth(i,j)[1] = tmparray.at<double>(0,1);
       smooth(i,j)[2] = tmparray.at<double>(1,1);
-      //std::cout << tmparray << std::endl << "eigenvalues: " << eigenvalues << std::endl << eigenvectors << std::endl << std::endl;
     }
   }
 }
@@ -381,18 +284,328 @@ void computeDataTerm(const cv::Mat_<cv::Vec2d> &p, const cv::Mat_<cv::Vec6d> &t,
             + t(i,j)[3] * p(i,j)[0] * p(i,j)[1] * 2     // J21*du*dv
             + t(i,j)[4] * p(i,j)[0] * 2                 // J13*du
             + t(i,j)[5] * p(i,j)[1] * 2;                // J23*dv
-      data(i,j) = L1dot(tmp);
+      data(i,j) = L1dot(tmp, EPSILON_D);
     }
   }
 }
 
 
-double L1(double value){
-  return (value < 0 ) ? 0 : std::sqrt(value + EPSILON);
+double L1(double value, double epsilon){
+  return (value < 0 ) ? 0 : std::sqrt(value + epsilon);
 }
 
 
-double L1dot(double value){
+double L1dot(double value, double epsilon)
   value = value < 0 ? 0 : value;
-  return 1.0/(2.0 * std::sqrt(value + EPSILON));
+  return 1.0/(2.0 * std::sqrt(value + epsilon));
 }
+
+
+
+
+/* ------------------------------------------------------------------------- */
+void set_up_differential_operator_all_2d(
+  fptype **s11,           /* in  : nonlinear tensor entry 11 */
+  fptype **s12,           /* in  : nonlinear tensor entry 12 */
+  fptype **s22,           /* in  : nonlinear tensor entry 22 */
+  fptype ***psi_pri_s_nb, /* out : neighbourhood weights */
+  itype  nx,              /* in  : size in x-direction  */ 
+  itype  ny,              /* in  : size in y-direction  */ 
+  itype  bx,              /* in  : boundary size in x-direction */ 
+  itype  by,              /* in  : boundary size in y-direction */     
+  fptype hx,              /* in  : grid size in x-direction  */
+  fptype hy,              /* in  : grid size in y-direction  */
+  fptype m_alpha,         /* in  : smoothness parameter */
+  itype  n_theta          /* in  : discretisation parameter */
+)
+
+/* sets up differential operator (in smoothness term) */
+          
+{
+itype    i,j;                 /* loop variables */
+fptype   rxx,rxy,ryy;         /* time saver */
+fptype   **theta;             /* discretisation coefficient */
+
+   
+/* compute time saver variables */
+ rxx  = m_alpha / (2.0 * hx * hx);
+ ryy  = m_alpha / (2.0 * hy * hy);
+ rxy  = m_alpha / (4.0 * hx * hy);
+ 
+ 
+ /* chose discretiation */
+ ALLOC_MATRIX(1, nx+2*bx, ny+2*by, &theta);
+ 
+ if(n_theta==-1)
+     for (i=bx; i<nx+bx; i++)    
+     for (j=by; j<ny+by; j++)     
+         theta[i][j]= -1.0;
+ 
+ if(n_theta==0)
+     for (i=bx; i<nx+bx; i++)    
+     for (j=by; j<ny+by; j++)      
+         theta[i][j]= 0.0;
+ 
+ if(n_theta==1)
+     for (i=bx; i<nx+bx; i++)    
+     for (j=by; j<ny+by; j++)
+         theta[i][j]=1.0;
+ 
+ if(n_theta==2)
+     for (i=bx; i<nx+bx; i++)    
+     for (j=by; j<ny+by; j++)     
+         theta[i][j]=signum(s12[i][j]);
+ 
+ 
+ /* struture of psi_pri_s_nb : */
+ /* psi_pri_s_nb[j][0]  : neighbour -> xmym  */
+ /* psi_pri_s_nb[j][1]  : neighbour -> xm    */
+ /* psi_pri_s_nb[j][2]  : neighbour -> xmyp  */  
+ /* psi_pri_s_nb[j][3]  : neighbour ->   ym  */
+ /* psi_pri_s_nb[j][4]  : neighbour ->   yp  */
+ /* psi_pri_s_nb[j][5]  : neighbour -> xpym  */
+ /* psi_pri_s_nb[j][6]  : neighbour -> xp    */
+ /* psi_pri_s_nb[j][7]  : neighbour -> xpyp  */
+ /* psi_pri_s_nb[j][8]  : central pixel   */
+ 
+ 
+ for (i=bx; i<=bx; i++)    
+     for (j=by; j<=by; j++)
+     {           
+     psi_pri_s_nb[i][j][4] = ryy * (s22[i][j+1] + s22[i][j])
+         + (1-theta[i][j])  *rxy*s12[i][j]
+         - (1+theta[i][j+1])*rxy*s12[i][j+1];
+     
+     psi_pri_s_nb[i][j][5] = 0.0;
+     
+     psi_pri_s_nb[i][j][6] = rxx * (s11[i+1][j] + s11[i][j]) 
+         + (1-theta[i][j])  *rxy*s12[i][j]
+         - (1+theta[i+1][j])*rxy*s12[i+1][j];
+     
+     psi_pri_s_nb[i][j][7] =   
+         + (1+theta[i][j+1])*rxy*s12[i][j+1]
+         + (1+theta[i+1][j])*rxy*s12[i+1][j];
+     
+     }
+ 
+ for (i=bx; i<=bx; i++)    
+     for (j=by+1; j<ny+by-1; j++)
+     {           
+         psi_pri_s_nb[i][j][4] = ryy * (s22[i][j+1] + s22[i][j])
+         + (1-theta[i][j])  *rxy*s12[i][j]
+         - (1+theta[i][j+1])*rxy*s12[i][j+1];
+         
+         psi_pri_s_nb[i][j][5] = 
+         - (1-theta[i][j-1])*rxy*s12[i][j-1]
+         - (1-theta[i+1][j])*rxy*s12[i+1][j];
+         
+         psi_pri_s_nb[i][j][6] = rxx * (s11[i+1][j] + s11[i][j]) 
+         + (1-theta[i][j])  *rxy*s12[i][j]
+         - (1+theta[i][j])  *rxy*s12[i][j]
+         + (1-theta[i+1][j])*rxy*s12[i+1][j]
+         - (1+theta[i+1][j])*rxy*s12[i+1][j];
+         
+         psi_pri_s_nb[i][j][7] =   
+         + (1+theta[i][j+1])*rxy*s12[i][j+1]
+         + (1+theta[i+1][j])*rxy*s12[i+1][j];
+         
+     }
+ 
+ for (i=bx; i<=bx; i++)    
+     for (j=ny+by-1; j<=ny+by-1; j++)
+     {           
+     psi_pri_s_nb[i][j][4] = 0.0;
+     
+     psi_pri_s_nb[i][j][5] = 
+         - (1-theta[i][j-1])*rxy*s12[i][j-1]
+         - (1-theta[i+1][j])*rxy*s12[i+1][j];
+     
+     psi_pri_s_nb[i][j][6] = rxx * (s11[i+1][j] + s11[i][j])          
+         - (1+theta[i][j])  *rxy*s12[i][j]
+         + (1-theta[i+1][j])*rxy*s12[i+1][j];
+     
+     psi_pri_s_nb[i][j][7] = 0.0;                 
+     }
+ 
+ for (i=bx+1; i<nx+bx-1; i++)    
+     for (j=by; j<=by; j++)
+     {           
+     psi_pri_s_nb[i][j][4] = ryy * (s22[i][j+1] + s22[i][j])
+         + (1-theta[i][j])  *rxy*s12[i][j]
+         - (1+theta[i][j])  *rxy*s12[i][j]
+         + (1-theta[i][j+1])*rxy*s12[i][j+1]
+         - (1+theta[i][j+1])*rxy*s12[i][j+1];
+     
+     psi_pri_s_nb[i][j][5] = 0.0; 
+     
+     psi_pri_s_nb[i][j][6] = rxx * (s11[i+1][j] + s11[i][j]) 
+         + (1-theta[i][j])  *rxy*s12[i][j]         
+         - (1+theta[i+1][j])*rxy*s12[i+1][j];
+     
+     psi_pri_s_nb[i][j][7] =   
+         + (1+theta[i][j+1])*rxy*s12[i][j+1]
+         + (1+theta[i+1][j])*rxy*s12[i+1][j];
+         
+     }
+ 
+ for (i=bx+1; i<nx+bx-1; i++)    
+     for (j=by+1; j<ny+by-1; j++)
+     {           
+     psi_pri_s_nb[i][j][4] = ryy * (s22[i][j+1] + s22[i][j])
+         + (1-theta[i][j])  *rxy*s12[i][j]
+         - (1+theta[i][j])  *rxy*s12[i][j]
+         + (1-theta[i][j+1])*rxy*s12[i][j+1]
+         - (1+theta[i][j+1])*rxy*s12[i][j+1];
+     
+     psi_pri_s_nb[i][j][5] = 
+         - (1-theta[i][j-1])*rxy*s12[i][j-1]
+         - (1-theta[i+1][j])*rxy*s12[i+1][j];
+     
+     psi_pri_s_nb[i][j][6] = rxx * (s11[i+1][j] + s11[i][j]) 
+         + (1-theta[i][j])  *rxy*s12[i][j]
+         - (1+theta[i][j])  *rxy*s12[i][j]
+         + (1-theta[i+1][j])*rxy*s12[i+1][j]
+         - (1+theta[i+1][j])*rxy*s12[i+1][j];
+     
+     psi_pri_s_nb[i][j][7] =    
+         + (1+theta[i][j+1])*rxy*s12[i][j+1]
+         + (1+theta[i+1][j])*rxy*s12[i+1][j];
+     
+     }
+ 
+ for (i=bx+1; i<nx+bx-1; i++)    
+     for (j=by+ny-1; j<=ny+by-1; j++)
+     {           
+     psi_pri_s_nb[i][j][4] = 0.0;
+     
+     psi_pri_s_nb[i][j][5] = 
+         - (1-theta[i][j-1])*rxy*s12[i][j-1]
+         - (1-theta[i+1][j])*rxy*s12[i+1][j];
+     
+     psi_pri_s_nb[i][j][6] = rxx * (s11[i+1][j] + s11[i][j])          
+         - (1+theta[i][j])  *rxy*s12[i][j]
+         + (1-theta[i+1][j])*rxy*s12[i+1][j];
+     
+     psi_pri_s_nb[i][j][7] = 0.0;              
+     }
+ 
+ for (i=bx+nx-1; i<=nx+bx-1; i++)    
+     for (j=by; j<=by; j++)
+     {           
+     psi_pri_s_nb[i][j][4] = ryy * (s22[i][j+1] + s22[i][j])         
+         - (1+theta[i][j])  *rxy*s12[i][j]
+         + (1-theta[i][j+1])*rxy*s12[i][j+1];
+     
+     psi_pri_s_nb[i][j][5] = 0.0;
+     
+     psi_pri_s_nb[i][j][6] = 0.0;
+     
+     psi_pri_s_nb[i][j][7] = 0.0;              
+     }
+ 
+ for (i=bx+nx-1; i<=nx+bx-1; i++)    
+     for (j=by+1; j<ny+by-1; j++)
+     {           
+     psi_pri_s_nb[i][j][4] = ryy * (s22[i][j+1] + s22[i][j])         
+         - (1+theta[i][j])  *rxy*s12[i][j]
+         + (1-theta[i][j+1])*rxy*s12[i][j+1];
+     
+     psi_pri_s_nb[i][j][5] = 0.0;
+     
+     psi_pri_s_nb[i][j][6] = 0.0;
+     
+     psi_pri_s_nb[i][j][7] = 0.0;               
+     }
+ 
+ for (i=bx+nx-1; i<=nx+bx-1; i++)    
+     for (j=by+ny-1; j<=ny+by-1; j++)
+     {           
+     psi_pri_s_nb[i][j][4] = 0.0;
+     
+     psi_pri_s_nb[i][j][5] = 0.0;
+     
+     psi_pri_s_nb[i][j][6] = 0.0; 
+     
+     psi_pri_s_nb[i][j][7] = 0.0;         
+     }
+ 
+ 
+ FREE_MATRIX(1, nx+2*bx, ny+2*by, theta);
+ 
+ /* mirror boundaries in y direction */
+ for (i=0; i<nx+2*bx-1; i++)   
+     for (j=1; j<=by; j++)  
+     {
+     psi_pri_s_nb[i][by-j][4]=0.0;
+     psi_pri_s_nb[i][by-j][5]=0.0;
+     psi_pri_s_nb[i][by-j][6]=0.0;
+     psi_pri_s_nb[i][by-j][7]=0.0;
+     psi_pri_s_nb[i][ny+by-1+j][4]=0.0;
+     psi_pri_s_nb[i][ny+by-1+j][5]=0.0;
+     psi_pri_s_nb[i][ny+by-1+j][6]=0.0;
+     psi_pri_s_nb[i][ny+by-1+j][7]=0.0;
+     }
+ /* mirror boundaries in x direction */
+ for (i=1; i<=bx; i++)   
+     for (j=0; j<ny+2*by; j++)  
+     {
+     psi_pri_s_nb[bx-i][j][4]=0.0;
+     psi_pri_s_nb[bx-i][j][5]=0.0;
+     psi_pri_s_nb[bx-i][j][6]=0.0;
+     psi_pri_s_nb[bx-i][j][7]=0.0;
+     psi_pri_s_nb[nx+bx-1+i][j][4]=0.0;
+     psi_pri_s_nb[nx+bx-1+i][j][5]=0.0;
+     psi_pri_s_nb[nx+bx-1+i][j][6]=0.0;
+     psi_pri_s_nb[nx+bx-1+i][j][7]=0.0;
+     
+     }
+ 
+ /* set up lower diagonal entries using symmetry property of A */
+ /* (use upper diagonal diffusion entries) */
+ for (i=bx; i<nx+bx; i++)
+     for (j=by; j<ny+by; j++)    
+     {
+     psi_pri_s_nb[i][j][0] =  psi_pri_s_nb[i-1][j-1][7];
+     psi_pri_s_nb[i][j][1] =  psi_pri_s_nb[i-1][j  ][6];
+     psi_pri_s_nb[i][j][2] =  psi_pri_s_nb[i-1][j+1][5];
+     psi_pri_s_nb[i][j][3] =  psi_pri_s_nb[i  ][j-1][4];
+     }
+ 
+ /* compute central enties (diffusion) */          
+ for (i=bx; i<nx+bx; i++)
+     for (j=by; j<ny+by; j++)
+     {       
+     psi_pri_s_nb[i][j][8]= -( psi_pri_s_nb[i][j][0]+psi_pri_s_nb[i][j][1]
+                  +psi_pri_s_nb[i][j][2]+psi_pri_s_nb[i][j][3]
+                  +psi_pri_s_nb[i][j][4]+psi_pri_s_nb[i][j][5]
+                  +psi_pri_s_nb[i][j][6]+psi_pri_s_nb[i][j][7]);
+     } 
+
+ /*
+ for (i=bx; i<nx+bx; i++)
+   for (j=by; j<ny+by; j++)        
+     {  
+       if((i==bx+nx/2)&&(j==by+ny/2))
+     {
+       printf("\n WITH WARPING");   
+       printf("\n Alpha   :  %f", m_alpha);
+       printf("\n Theta   :  %d", n_theta);
+       printf("\n hx      :  %f", hx);
+       printf("\n hy      :  %f", hy);
+       printf("\n Value 11:  %f", s11[i][j]);
+       printf("\n Value 12:  %f", s12[i][j]);
+       printf("\n Value 13:  %f", s22[i][j]);
+       printf("\n Value  0:  %f", psi_pri_s_nb[i][j][0]);
+       printf("\n Value  1:  %f", psi_pri_s_nb[i][j][1]);
+       printf("\n Value  2:  %f", psi_pri_s_nb[i][j][2]);
+       printf("\n Value  3:  %f", psi_pri_s_nb[i][j][3]);
+       printf("\n Value  4:  %f", psi_pri_s_nb[i][j][4]);
+       printf("\n Value  5:  %f", psi_pri_s_nb[i][j][5]);
+       printf("\n Value  6:  %f", psi_pri_s_nb[i][j][6]);
+       printf("\n Value  7:  %f", psi_pri_s_nb[i][j][7]);
+     }
+     } 
+ */
+
+ return;
+} 

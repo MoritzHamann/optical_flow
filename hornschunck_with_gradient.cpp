@@ -6,11 +6,11 @@
 
 
 void setupParameters(std::unordered_map<std::string, parameter> &parameters){
-  parameter alpha = {"alpha", 100, 1000, 1};
+  parameter alpha = {"alpha", 55, 1000, 1};
   parameter omega = {"omega", 195, 200, 100};
   parameter sigma = {"sigma", 15, 100, 10};
-  parameter gamma = {"gamma", 500, 1000, 1000};
-  parameter maxiter = {"maxiter", 200, 2000, 1};
+  parameter gamma = {"gamma", 990, 1000, 1000};
+  parameter maxiter = {"maxiter", 100, 2000, 1};
 
   parameters.insert(std::make_pair<std::string, parameter>(alpha.name, alpha));
   parameters.insert(std::make_pair<std::string, parameter>(omega.name, omega));

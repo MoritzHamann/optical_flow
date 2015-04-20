@@ -12,7 +12,7 @@
 */
 void setupParameters(std::unordered_map<std::string, parameter> &parameters){
   // we need alpha, omega, maxiter
-  parameter alpha = {"alpha", 100, 1000, 1};
+  parameter alpha = {"alpha", 55, 1000, 1};
   parameter omega = {"omega", 195, 200, 100};
   parameter maxiter = {"maxiter", 200, 2000, 1};
   parameter sigma = {"sigma", 15, 100, 10};

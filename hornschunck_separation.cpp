@@ -7,16 +7,16 @@ const double DELTA=1.0;
 
 
 void setupParameters(std::unordered_map<std::string, parameter> &parameters){
-  parameter alpha = {"alpha", 100, 1000, 1};
+  parameter alpha = {"alpha", 55, 1000, 1};
   parameter omega = {"omega", 195, 200, 100};
   parameter sigma = {"sigma", 15, 100, 10};
-  parameter gamma = {"gamma", 500, 1000, 1000};
-  parameter maxiter = {"maxiter", 200, 400, 1};
-  parameter kappa = {"kappa", 25, 100, 100};
-  parameter beta = {"beta", 100, 300, 10};
-  parameter deltat = {"deltat", 25, 100, 100};
-  parameter phi_iter = {"phi_iter", 10, 100, 1};
-  parameter iter_flow_before_phi = {"iter_flow_before_phi", 10, 100, 1};
+  parameter gamma = {"gamma", 990, 1000, 1000};
+  parameter maxiter = {"maxiter", 40, 400, 1};
+  parameter kappa = {"kappa", 100, 100, 100};
+  parameter beta = {"beta", 20, 300, 10};
+  parameter deltat = {"deltat", 100, 100, 100};
+  parameter phi_iter = {"phi_iter", 15, 100, 1};
+  parameter iter_flow_before_phi = {"iter_flow_before_phi", 1, 100, 1};
 
 
   parameters.insert(std::make_pair<std::string, parameter>(alpha.name, alpha));

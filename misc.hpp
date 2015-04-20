@@ -27,6 +27,6 @@ void computeFlowField(const cv::Mat &image1,
                  cv::Mat_<cv::Vec2d> &flowfield,
                  cv::Mat_<double> &phi);
 
-
+void remap_border(cv::Mat &image, const cv::Mat_<cv::Vec2d> &flowfield, cv::Mat_<double> &mask);
 void computeSegmentationImage(const cv::Mat_<double> &phi, const cv::Mat_<uchar> &image1, cv::Mat &segmentation);
 #endif

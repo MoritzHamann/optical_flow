@@ -4,7 +4,8 @@
 */
 
 #include "brox.hpp"
-#define EPSILON 0.001
+double const EPSILON_D = 0.01 * 0.01;
+double const EPSILON_S = 0.01 * 0.01;
 
 void debug(std::string text){
   std::cout << text << std::endl;
@@ -15,14 +16,14 @@ void debug(std::string text){
   * Set up the parameters
 */
 void setupParameters(std::unordered_map<std::string, parameter> &parameters){
-  parameter alpha = {"alpha", 10, 100, 1};
+  parameter alpha = {"alpha", 80, 1000, 10};
   parameter omega = {"omega", 195, 200, 100};
-  parameter sigma = {"sigma", 15, 100, 10};
-  parameter gamma = {"gamma", 500, 1000, 1000};
-  parameter maxiter = {"maxiter", 100, 1000, 1};
+  parameter sigma = {"sigma", 10, 100, 10};
+  parameter gamma = {"gamma", 990, 1000, 1000};
+  parameter maxiter = {"maxiter", 40, 1000, 1};
   parameter maxlevel = {"maxlevel", 4, 100, 1};
   parameter wrapfactor = {"wrapfactor", 95, 100, 100};
-  parameter nonlinear_step = {"nonlinear_step", 10, 150, 1};
+  parameter nonlinear_step = {"nonlinear_step", 3, 150, 1};
 
   parameters.insert(std::make_pair<std::string, parameter>(alpha.name, alpha));
   parameters.insert(std::make_pair<std::string, parameter>(omega.name, omega));
@@ -61,10 +62,13 @@ void computeFlowField(const cv::Mat &image1, const cv::Mat &image2, std::unorder
 
   // initialize parital and complete flowfield
   cv::Mat_<cv::Vec2d> partial(i1smoothed.size());
-  flowfield.create(i1smoothed.size());
   cv::Mat flowfield_wrap;
+  cv::Mat_<double> mask(i1smoothed.size());
+
+  flowfield.create(i1smoothed.size());
   partial = cv::Vec2d(0,0);
   flowfield = cv::Vec2d(0,0);
+  mask = 1;
 
   // make a 2-channel matrix with each pixel with its coordinates as value (serves as basis for flowfield remapping)
   cv::Mat remap_basis(image1.size(), CV_32FC2);
@@ -90,25 +94,26 @@ void computeFlowField(const cv::Mat &image1, const cv::Mat &image2, std::unorder
     // resample flowfield to current level (for now using area resampling)
     cv::resize(flowfield, flowfield, i1.size(), 0, 0, cv::INTER_AREA);
     cv::resize(partial, partial, i1.size(), 0, 0, cv::INTER_AREA);
-
     flowfield = flowfield * wrapfactor;
-
-    // wrap image 2 with current flowfield
-    flowfield.convertTo(flowfield_wrap, CV_32FC2);
-    flowfield_wrap = flowfield_wrap + remap_basis(cv::Rect(0, 0, flowfield_wrap.cols, flowfield_wrap.rows));
-    cv::remap(i2, i2, flowfield_wrap, cv::Mat(), cv::INTER_LINEAR, cv::BORDER_REPLICATE, cv::Scalar(0));
-
-
-    // compute tensors
-    cv::Mat_<cv::Vec6d> t = (1.0 - gamma) * ComputeBrightnessTensor(i1, i2, hy, hx) + gamma * ComputeGradientTensor(i1, i2, hx, hy);
-
-    // add 1px border to flowfield, parital and tensor
-    cv::copyMakeBorder(flowfield, flowfield, 1, 1, 1, 1, cv::BORDER_CONSTANT, 0);
-    cv::copyMakeBorder(partial, partial, 1, 1, 1, 1, cv::BORDER_CONSTANT, 0);
-    cv::copyMakeBorder(t, t, 1, 1, 1, 1, cv::BORDER_CONSTANT, 0);
-
+    
     // set partial flowfield to zero
     partial = cv::Vec2d(0,0);
+
+    // resize mask and set it to 1
+    cv::resize(mask, mask, i1.size(), 0, 0, cv::INTER_NEAREST);
+    mask = 1;
+    
+    // add 1px border to flowfield, parital and mask
+    cv::copyMakeBorder(flowfield, flowfield, 1, 1, 1, 1, cv::BORDER_CONSTANT, 0);
+    cv::copyMakeBorder(partial, partial, 1, 1, 1, 1, cv::BORDER_CONSTANT, 0);
+    cv::copyMakeBorder(mask, mask, 1, 1, 1, 1, cv::BORDER_CONSTANT, 1);
+
+    // remap the second image with bilinear interpolation
+    remap_border(i2, flowfield, mask);
+
+    // compute tensors and add 1px border
+    cv::Mat_<cv::Vec6d> t = (1.0 - gamma) * ComputeBrightnessTensor(i1, i2, hy, hx) + gamma * ComputeGradientTensor(i1, i2, hx, hy);
+    cv::copyMakeBorder(t, t, 1, 1, 1, 1, cv::BORDER_CONSTANT, 0);
 
     // main loop
     cv::Mat_<double> data(partial.size(), CV_64F);
@@ -119,12 +124,15 @@ void computeFlowField(const cv::Mat &image1, const cv::Mat &image2, std::unorder
         computeDataTerm(partial, t, data);
         computeSmoothnessTerm(flowfield, partial, smooth, hx, hy);
       }
-      Brox_step_iso_smooth(t, flowfield, partial, data, smooth, parameters, hx, hy);
+      Brox_step_iso_smooth(t, flowfield, partial, data, smooth, mask, parameters, hx, hy);
     }
 
     // add partial flowfield to complete flowfield
     flowfield = flowfield + partial;
   }
+  cv::Mat m;
+  computeSegmentationImage(mask, i1, m);
+  cv::imshow("mask", m);
   flowfield = flowfield(cv::Rect(1, 1, image1.cols, image1.rows));
 }
 
@@ -139,6 +147,7 @@ void Brox_step_iso_smooth(const cv::Mat_<cv::Vec6d> &t,
                cv::Mat_<cv::Vec2d> &p,
                cv::Mat_<double> &data,
                cv::Mat_<double> &smooth,
+               cv::Mat_<double> &mask,
                std::unordered_map<std::string, parameter> &parameters,
                double hx,
                double hy){
@@ -165,7 +174,7 @@ void Brox_step_iso_smooth(const cv::Mat_<cv::Vec6d> &t,
 
       // compute du
       // data terms
-      tmp = data(i,j) * (t(i,j)[3] * p(i,j)[1] + t(i,j)[4]);
+      tmp = mask(i,j) * data(i,j) * (t(i,j)[3] * p(i,j)[1] + t(i,j)[4]);
 
       // smoothness terms
       tmp = tmp
@@ -176,13 +185,13 @@ void Brox_step_iso_smooth(const cv::Mat_<cv::Vec6d> &t,
             + sum * f(i,j)[0];
 
       // normalization
-      tmp = tmp /(- data(i,j) * t(i,j)[0] - sum);
+      tmp = tmp /(- mask(i,j) * data(i,j) * t(i,j)[0] - sum);
       p(i,j)[0] = (1.0-omega) * p(i,j)[0] + omega * tmp;
 
 
       // same for dv
       // data terms
-      tmp = data(i,j) * (t(i,j)[3] * p(i,j)[0] + t(i,j)[5]);
+      tmp = mask(i,j) * data(i,j) * (t(i,j)[3] * p(i,j)[0] + t(i,j)[5]);
 
       // smoothness terms
       tmp = tmp
@@ -193,7 +202,7 @@ void Brox_step_iso_smooth(const cv::Mat_<cv::Vec6d> &t,
             + sum * f(i,j)[1];
 
       // normalization
-      tmp = tmp /(- data(i,j) * t(i,j)[1] - sum);
+      tmp = tmp /(- mask(i,j) * data(i,j) * t(i,j)[1] - sum);
       p(i,j)[1] = (1.0-omega) * p(i,j)[1] + omega * tmp;
 
     }
@@ -220,8 +229,6 @@ void computeSmoothnessTerm(const cv::Mat_<cv::Vec2d> &f, const cv::Mat_<cv::Vec2
   flow_u = flow_u + pc[0];
   flow_v = flow_v + pc[1];
 
-  //std::cout << flow_u.at<cv::Vec2d>(10,10) << ":" << flow_v.at<cv::Vec2d>(10,10) << std::endl;
-
   // derivates in y-direction
   kernel = (cv::Mat_<double>(3,1) << -1, 0, 1);
   cv::filter2D(flow_u, uy, CV_64F, kernel * 1.0/(2*hy), cv::Point(-1,-1), 0, cv::BORDER_REPLICATE);
@@ -236,7 +243,7 @@ void computeSmoothnessTerm(const cv::Mat_<cv::Vec2d> &f, const cv::Mat_<cv::Vec2
     for (int j = 0; j < p.cols; j++){
       tmp = ux.at<double>(i,j) * ux.at<double>(i,j) + uy.at<double>(i,j) * uy.at<double>(i,j);
       tmp = tmp + vx.at<double>(i,j) * vx.at<double>(i,j) + vy.at<double>(i,j) * vy.at<double>(i,j);
-      smooth(i,j) = L1dot(tmp);
+      smooth(i,j) = L1dot(tmp, EPSILON_S);
     }
   }
 }
@@ -255,18 +262,18 @@ void computeDataTerm(const cv::Mat_<cv::Vec2d> &p, const cv::Mat_<cv::Vec6d> &t,
             + t(i,j)[3] * p(i,j)[0] * p(i,j)[1] * 2     // J21*du*dv
             + t(i,j)[4] * p(i,j)[0] * 2                 // J13*du
             + t(i,j)[5] * p(i,j)[1] * 2;                // J23*dv
-      data(i,j) = L1dot(tmp);
+      data(i,j) = L1dot(tmp, EPSILON_D);
     }
   }
 }
 
 
-double L1(double value){
-  return (value < 0 ) ? 0 : std::sqrt(value + EPSILON);
+double L1(double value, double epsilon){
+  return (value < 0 ) ? 0 : std::sqrt(value + epsilon);
 }
 
 
-double L1dot(double value){
+double L1dot(double value, double epsilon){
   value = value < 0 ? 0 : value;
-  return 1.0/(2.0 * std::sqrt(value + EPSILON));
+  return 1.0/(2.0 * std::sqrt(value + epsilon));
 }

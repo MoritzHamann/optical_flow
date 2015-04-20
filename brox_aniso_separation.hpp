@@ -12,17 +12,16 @@
 
 void setupParameters(std::unordered_map<std::string, parameter> &parameters);
 void computeFlowField(const cv::Mat &image1, const cv::Mat &image2, std::unordered_map<std::string, parameter> &parameters, cv::Mat_<cv::Vec2d> &flowfield);
-void Brox_step_iso_smooth(const cv::Mat_<cv::Vec6d> &t,
+void Brox_step_aniso_smooth(const cv::Mat_<cv::Vec6d> &t,
                           const cv::Mat_<cv::Vec2d> &flowfield_p,
                           const cv::Mat_<cv::Vec2d> &flowfield_m,
                           cv::Mat_<cv::Vec2d> &partial_p,
                           cv::Mat_<cv::Vec2d> &partial_m,
                           const cv::Mat_<double> &data_p,
                           const cv::Mat_<double> &data_m,
-                          const cv::Mat_<double> &smooth_p,
-                          const cv::Mat_<double> &smooth_m,
+                          const cv::Mat_<cv::Vec4d> &smooth_p,
+                          const cv::Mat_<cv::Vec4d> &smooth_m,
                           const cv::Mat_<double> &phi,
-                          const cv::Mat_<double> &mask,
                           const std::unordered_map<std::string, parameter> &parameters,
                           double h);
 
@@ -30,9 +29,8 @@ void updateU(const cv::Mat_<cv::Vec2d> &f,
              cv::Mat_<cv::Vec2d> &p,
              const cv::Mat_<double> &phi,
              const cv::Mat_<double> data,
-             const cv::Mat_<double> smooth,
+             const cv::Mat_<cv::Vec4d> smooth,
              const cv::Mat_<cv::Vec6d> &t,
-             const cv::Mat_<double> &mask,
              const std::unordered_map<std::string, parameter> &parameters,
              double h,
              double sign);
@@ -41,27 +39,26 @@ void updateV(const cv::Mat_<cv::Vec2d> &f,
              cv::Mat_<cv::Vec2d> &p,
              const cv::Mat_<double> &phi,
              const cv::Mat_<double> data,
-             const cv::Mat_<double> smooth,
+             const cv::Mat_<cv::Vec4d> smooth,
              const cv::Mat_<cv::Vec6d> &t,
-             const cv::Mat_<double> &mask,
              const std::unordered_map<std::string, parameter> &parameters,
              double h,
              double sign);
 
 void updatePhi(const cv::Mat_<double> &data_p,
                const cv::Mat_<double> &data_m,
-               const cv::Mat_<double> &smooth_p,
-               const cv::Mat_<double> &smooth_m,
+               const cv::Mat_<cv::Vec4d> &smooth_p,
+               const cv::Mat_<cv::Vec4d> &smooth_m,
                cv::Mat_<double> &phi,
                const std::unordered_map<std::string, parameter> &parameters,
                double h);
 
-void computeSmoothnessTerm(const cv::Mat_<cv::Vec2d> &f, const cv::Mat_<cv::Vec2d> &p, cv::Mat_<double> &smooth, double hx, double hy);
+void computeAnisotropicSmoothnessTerm(const cv::Mat_<cv::Vec2d> &f, const cv::Mat_<cv::Vec2d> &p, cv::Mat_<cv::Vec4d> &smooth, double hx, double hy);
 void computeDataTerm(const cv::Mat_<cv::Vec2d> &p, const cv::Mat_<cv::Vec6d> &t, cv::Mat_<double> &data);
 double H(double x);
 double Hdot(double x);
-double L1(double value, double epsilon);
-double L1dot(double value, double epsilon);
+double L1(double value);
+double L1dot(double value);
 
 
 #endif

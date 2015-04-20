@@ -1,27 +1,26 @@
 /**
-  * brox et al spatial smoothness (isotropic) with segmentation 
+  * brox et al spatial smoothness (anisotropic) with segmentation 
 */
 
-#include "brox_iso_separation.hpp"
-const double DELTA = 1.0;
-const double EPSILON_S = 0.01 * 0.01;
-const double EPSILON_D = 0.01 * 0.01;
+#include "brox_aniso_separation.hpp"
+const double DELTA=1.0;
+#define EPSILON 0.001
 
 
 void setupParameters(std::unordered_map<std::string, parameter> &parameters){
-  parameter alpha = {"alpha", 8, 1000, 1};
+  parameter alpha = {"alpha", 10, 1000, 1};
   parameter omega = {"omega", 195, 200, 100};
-  parameter sigma = {"sigma", 10, 100, 10};
-  parameter gamma = {"gamma", 990, 1000, 1000};
-  parameter maxiter = {"maxiter", 5, 400, 1};
+  parameter sigma = {"sigma", 15, 100, 10};
+  parameter gamma = {"gamma", 500, 1000, 1000};
+  parameter maxiter = {"maxiter", 40, 400, 1};
   parameter maxlevel = {"maxlevel", 4, 100, 1};
   parameter wrapfactor = {"wrapfactor", 95, 100, 100};
-  parameter nonlinear_step = {"nonlinear_step", 3, 150, 1};
+  parameter nonlinear_step = {"nonlinear_step", 10, 150, 1};
   parameter kappa = {"kappa", 100, 100, 100};
-  parameter beta = {"beta", 150, 1000, 100};
-  parameter deltat = {"deltat", 100, 100, 100};
-  parameter phi_iter = {"phi_iter", 50, 100, 1};
-  parameter iter_flow_before_phi = {"iter_flow_before_phi", 15, 100, 1};
+  parameter beta = {"beta", 4, 1000, 100};
+  parameter deltat = {"deltat", 25, 100, 100};
+  parameter phi_iter = {"phi_iter", 10, 100, 1};
+  parameter iter_flow_before_phi = {"iter_flow_before_phi", 10, 100, 1};
 
 
   parameters.insert(std::make_pair<std::string, parameter>(alpha.name, alpha));
@@ -74,16 +73,21 @@ void computeFlowField(const cv::Mat &image1, const cv::Mat &image2, std::unorder
   cv::Mat_<cv::Vec2d> flowfield_p(i1smoothed.size());
   cv::Mat_<cv::Vec2d> flowfield_m(i1smoothed.size());
 
-  // initialize mask
-  cv::Mat_<double> mask(i1smoothed.size());
-  mask = 1;
-
+  cv::Mat flowfield_wrap;
   partial_p = cv::Vec2d(0,0);
   partial_m = cv::Vec2d(0,0);
   flowfield = cv::Vec2d(0,0);
   flowfield_p = cv::Vec2d(0,0);
   flowfield_m = cv::Vec2d(0,0);
 
+  // make a 2-channel matrix with each pixel with its coordinates as value (serves as basis for flowfield remapping)
+  cv::Mat remap_basis(image1.size(), CV_32FC2);
+  for (int i = 0; i < image1.rows; i++){
+   for (int j = 0; j < image1.cols; j++){
+     remap_basis.at<cv::Vec2f>(i,j)[0] = (float)j;
+     remap_basis.at<cv::Vec2f>(i,j)[1] = (float)i;
+   }
+  }
 
   // loop over levels
   for (int l = maxlevel; l >= 0; l--){
@@ -104,20 +108,21 @@ void computeFlowField(const cv::Mat &image1, const cv::Mat &image2, std::unorder
     cv::resize(partial_p, partial_p, i1.size(), 0, 0, cv::INTER_AREA);
     cv::resize(partial_m, partial_m, i1.size(), 0, 0, cv::INTER_AREA);
     cv::resize(phi, phi, i1.size(), 0, 0, cv::INTER_AREA);
-    cv::resize(mask, mask, i1.size(), 0, 0, cv::INTER_NEAREST);
 
 
     flowfield = flowfield * wrapfactor;
     flowfield_p = flowfield_p * wrapfactor;
     flowfield_m = flowfield_m * wrapfactor;
 
+
     // set partial flowfield to zero
     partial_p = cv::Vec2d(0,0);
     partial_m = cv::Vec2d(0,0);
 
-    // remap image
-    copyMakeBorder(mask, mask, 1, 1, 1, 1, cv::BORDER_CONSTANT, 1);
-    remap_border(i2, flowfield, mask);
+    // wrap image 2 with current flowfield
+    flowfield.convertTo(flowfield_wrap, CV_32FC2);
+    flowfield_wrap = flowfield_wrap + remap_basis(cv::Rect(0, 0, flowfield_wrap.cols, flowfield_wrap.rows));
+    cv::remap(i2, i2, flowfield_wrap, cv::Mat(), cv::INTER_LINEAR, cv::BORDER_REPLICATE, cv::Scalar(0));
 
     // compute tensors
     cv::Mat_<cv::Vec6d> t = (1.0 - gamma) * ComputeBrightnessTensor(i1, i2, h, h) + gamma * ComputeGradientTensor(i1, i2, h, h);
@@ -132,21 +137,22 @@ void computeFlowField(const cv::Mat &image1, const cv::Mat &image2, std::unorder
     cv::copyMakeBorder(t, t, 1, 1, 1, 1, cv::BORDER_CONSTANT, 0);
 
 
+
     // main loop
     cv::Mat_<double> data_p(partial_p.size());
     cv::Mat_<double> data_m(partial_p.size());
-    cv::Mat_<double> smooth_p(partial_p.size());
-    cv::Mat_<double> smooth_m(partial_p.size());
+    cv::Mat_<cv::Vec4d> smooth_p(partial_p.size());
+    cv::Mat_<cv::Vec4d> smooth_m(partial_p.size());
     for (int i = 0; i < maxiter; i++){
       for (int j = 0; j < iter_flow_before_phi; j++){
         if (j % nonlinear_step == 0 || j == 0){
           // computed terms dont have L1 norm yet
           computeDataTerm(partial_p, t, data_p);
           computeDataTerm(partial_m, t, data_m);
-          computeSmoothnessTerm(flowfield_p, partial_p, smooth_p, h, h);
-          computeSmoothnessTerm(flowfield_m, partial_m, smooth_m, h, h);
+          computeAnisotropicSmoothnessTerm(flowfield_p, partial_p, smooth_p, h, h);
+          computeAnisotropicSmoothnessTerm(flowfield_m, partial_m, smooth_m, h, h);
         }
-        Brox_step_iso_smooth(t, flowfield_p, flowfield_m, partial_p, partial_m, data_p, data_m, smooth_p, smooth_m, phi, mask, parameters, h);
+        Brox_step_aniso_smooth(t, flowfield_p, flowfield_m, partial_p, partial_m, data_p, data_m, smooth_p, smooth_m, phi, parameters, h);
       }
       for (int k = 0; k < phi_iter; k++){
         updatePhi(data_p, data_m, smooth_p, smooth_m, phi, parameters, h);
@@ -167,6 +173,11 @@ void computeFlowField(const cv::Mat &image1, const cv::Mat &image2, std::unorder
   }
 
 
+  //cv::Mat f_p, f_m;
+  //computeColorFlowField(flowfield_p, f_p);
+  //computeColorFlowField(flowfield_m, f_m);
+  //cv::imshow("postive", f_p);
+  //cv::imshow("negative", f_m);
   flowfield = flowfield(cv::Rect(1,1,image1.cols, image1.rows));
   phi = phi(cv::Rect(1,1,image1.cols, image1.rows));
 }
@@ -178,26 +189,25 @@ void computeFlowField(const cv::Mat &image1, const cv::Mat &image2, std::unorder
   * @params &cv::Mat_<cv::Vec2d> flowfield The matrix for the flowfield which is computed
   * @params &std::unordered_map<std::string, parameter> parameters The parameter hash map for the algorithm
 */
-void Brox_step_iso_smooth(const cv::Mat_<cv::Vec6d> &t,
+void Brox_step_aniso_smooth(const cv::Mat_<cv::Vec6d> &t,
                           const cv::Mat_<cv::Vec2d> &flowfield_p,
                           const cv::Mat_<cv::Vec2d> &flowfield_m,
                           cv::Mat_<cv::Vec2d> &partial_p,
                           cv::Mat_<cv::Vec2d> &partial_m,
                           const cv::Mat_<double> &data_p,
                           const cv::Mat_<double> &data_m,
-                          const cv::Mat_<double> &smooth_p,
-                          const cv::Mat_<double> &smooth_m,
+                          const cv::Mat_<cv::Vec4d> &smooth_p,
+                          const cv::Mat_<cv::Vec4d> &smooth_m,
                           const cv::Mat_<double> &phi,
-                          const cv::Mat_<double> &mask,
                           const std::unordered_map<std::string, parameter> &parameters,
                           double h){
 
 
-  updateU(flowfield_p, partial_p, phi, data_p, smooth_p, t, mask, parameters, h, 1);
-  updateU(flowfield_m, partial_m, phi, data_m, smooth_m, t, mask, parameters, h, -1);
+  updateU(flowfield_p, partial_p, phi, data_p, smooth_p, t, parameters, h, 1);
+  updateU(flowfield_m, partial_m, phi, data_m, smooth_m, t, parameters, h, -1);
 
-  updateV(flowfield_p, partial_p, phi, data_p, smooth_p, t, mask, parameters, h, 1);
-  updateV(flowfield_m, partial_m, phi, data_m, smooth_m, t, mask, parameters, h, -1);
+  updateV(flowfield_p, partial_p, phi, data_p, smooth_p, t, parameters, h, 1);
+  updateV(flowfield_m, partial_m, phi, data_m, smooth_m, t, parameters, h, -1);
 
 }
 
@@ -206,9 +216,8 @@ void updateU(const cv::Mat_<cv::Vec2d> &f,
              cv::Mat_<cv::Vec2d> &p,
              const cv::Mat_<double> &phi,
              const cv::Mat_<double> data,
-             const cv::Mat_<double> smooth,
+             const cv::Mat_<cv::Vec4d> smooth,
              const cv::Mat_<cv::Vec6d> &t,
-             const cv::Mat_<double> &mask,
              const std::unordered_map<std::string, parameter> &parameters,
              double h,
              double sign){
@@ -226,18 +235,20 @@ void updateU(const cv::Mat_<cv::Vec2d> &f,
       //if (phi(i,j)*sign > 0){
         // pixel is in the segment
 
-        xm = (j > 1) * (L1dot(smooth(i,j-1), EPSILON_S) + L1dot(smooth(i,j), EPSILON_S))/2.0 * (H(phi(i,j-1)*sign) + H(phi(i,j)*sign))/2.0 * alpha/(h*h);
-        xp = (j < p.cols - 2) * (L1dot(smooth(i,j+1), EPSILON_S) + L1dot(smooth(i,j), EPSILON_S))/2.0 * (H(phi(i,j+1)*sign) + H(phi(i,j)*sign))/2.0 * alpha/(h*h);
-        ym = (i > 1) * (L1dot(smooth(i-1,j), EPSILON_S) + L1dot(smooth(i,j), EPSILON_S))/2.0 * (H(phi(i-1,j)*sign) + H(phi(i,j)*sign))/2.0 * alpha/(h*h);
-        yp = (i < p.rows - 2) * (L1dot(smooth(i+1,j), EPSILON_S) + L1dot(smooth(i,j), EPSILON_S))/2.0 * (H(phi(i+1,j)*sign) + H(phi(i,j)*sign))/2.0 * alpha/(h*h);
-        sum = xm + xp + ym + yp;
+        // handle borders for terms on von Neumann neighboorhood
+        // isotropic part + anisotropic part
 
+        xm = (j > 1) * (smooth(i,j-1)[0] + smooth(i,j)[0])/2.0 * (H(phi(i,j-1)*sign) + H(phi(i,j)*sign))/2.0 * alpha/(h*h);
+        xp = (j < p.cols - 2) * (smooth(i,j+1)[0] + smooth(i,j)[0])/2.0 * (H(phi(i,j+1)*sign) + H(phi(i,j)*sign))/2.0 * alpha/(h*h);
+        ym = (i > 1) * (smooth(i-1,j)[2] + smooth(i,j)[2])/2.0 * (H(phi(i-1,j)*sign) + H(phi(i,j)*sign))/2.0 * alpha/(h*h);
+        yp = (i < p.rows - 2) * (smooth(i+1,j)[2] + smooth(i,j)[2])/2.0 * (H(phi(i+1,j)*sign) + H(phi(i,j)*sign))/2.0 * alpha/(h*h);
+        sum = xm + xp + ym + yp;
 
         // compute du
         // data terms
-        tmp = mask(i,j) * H(kappa * phi(i,j) * sign) * L1dot(data(i,j), EPSILON_D) * (t(i,j)[3] * p(i,j)[1] + t(i,j)[4]);
+        tmp = H(kappa*phi(i,j)*sign) * L1dot(data(i,j)) * (t(i,j)[3] * p(i,j)[1] + t(i,j)[4]);
 
-        // smoothness terms
+        // smoothness terms (von Neumann neighboorhood)
         tmp = tmp
               - xm * (f(i,j-1)[0] + p(i,j-1)[0])
               - xp * (f(i,j+1)[0] + p(i,j+1)[0])
@@ -245,10 +256,24 @@ void updateU(const cv::Mat_<cv::Vec2d> &f,
               - yp * (f(i+1,j)[0] + p(i+1,j)[0])
               + sum * f(i,j)[0];
 
-        // normalization
-        tmp = tmp /(- mask(i,j) * H(kappa * phi(i,j) *sign) * L1dot(data(i,j), EPSILON_D) * t(i,j)[0] - sum);
-        p(i,j)[0] = (1.0-omega) * p(i,j)[0] + omega * tmp;
+        // remaining neighboorhoods
+        tmp += (j < p.cols - 2) * ( i > 1) * (i < p.rows - 2) *
+              -(alpha/(h*h)) * (smooth(i,j+1)[1] + smooth(i,j)[1])/8.0 * (H(phi(i,j+1)*sign) + H(phi(i,j)*sign))/2.0 *
+              (f(i+1,j+1)[0] + p(i+1,j+1)[0] + f(i+1,j)[0] + p(i+1,j)[0] - f(i-1,j)[0] - p(i-1,j)[0] - f(i-1,j+1)[0] - p(i-1,j+1)[0]);
+        tmp -= (j > 1) * (i > 1) * ( i < p.rows - 2) *
+              -(alpha/(h*h)) * (smooth(i,j)[1] + smooth(i,j-1)[1])/8.0 * (H(phi(i,j-1)*sign) + H(phi(i,j)*sign))/2.0 *
+              (f(i+1,j)[0] + p(i+1,j)[0] + f(i+1,j-1)[0] + p(i+1,j-1)[0] - f(i-1,j)[0] - p(i-1,j)[0] - f(i-1,j-1)[0] - p(i-1,j-1)[0]);
+        tmp += (i < p.rows - 2) * (j > 1) * (j < p.cols - 2) *
+              -(alpha/(h*h)) * (smooth(i+1,j)[1] + smooth(i,j)[1])/8.0 * (H(phi(i+1,j)*sign) + H(phi(i,j)*sign))/2.0 *
+              (f(i+1,j+1)[0] + p(i+1,j+1)[0] + f(i,j+1)[0] + p(i,j+1)[0] - f(i,j-1)[0] - p(i,j-1)[0] - f(i+1,j-1)[0] - p(i+1,j-1)[0]);
+        tmp -= (i > 1) * (j > 1) * (j < p.cols - 2) *
+              -(alpha/(h*h)) * (smooth(i,j)[1] + smooth(i-1,j)[1])/8.0 * (H(phi(i-1,j)*sign) + H(phi(i,j)*sign))/2.0 *
+              (f(i,j+1)[0] + p(i,j+1)[0] + f(i-1,j+1)[0] + p(i-1,j+1)[0] - f(i,j-1)[0] - p(i,j-1)[0] - f(i-1,j-1)[0] - p(i-1,j-1)[0]);
 
+        // normalization
+        tmp = tmp /(- H(kappa*phi(i,j)*sign) * L1dot(data(i,j)) * t(i,j)[0] - sum);
+        
+        p(i,j)[0] = (1.0-omega) * p(i,j)[0] + omega * tmp;
 
       /*} else {
         // for now use smoothess term here
@@ -279,9 +304,8 @@ void updateV(const cv::Mat_<cv::Vec2d> &f,
              cv::Mat_<cv::Vec2d> &p,
              const cv::Mat_<double> &phi,
              const cv::Mat_<double> data,
-             const cv::Mat_<double> smooth,
+             const cv::Mat_<cv::Vec4d> smooth,
              const cv::Mat_<cv::Vec6d> &t,
-             const cv::Mat_<double> &mask,
              const std::unordered_map<std::string, parameter> &parameters,
              double h,
              double sign){
@@ -298,17 +322,18 @@ void updateV(const cv::Mat_<cv::Vec2d> &f,
 
        //if (phi(i,j)*sign > 0){
          // pixel is in the segment
+        
+         // handle borders for terms on von Neumann neighboorhood
+         // isotropic part + anisotropic part
 
-         xm = (j > 1) * (L1dot(smooth(i,j-1), EPSILON_S) + L1dot(smooth(i,j), EPSILON_S))/2.0 * (H(phi(i,j-1)*sign) + H(phi(i,j)*sign))/2.0 * alpha/(h*h);
-         xp = (j < p.cols - 2) * (L1dot(smooth(i,j+1), EPSILON_S) + L1dot(smooth(i,j), EPSILON_S))/2.0 * (H(phi(i,j+1)*sign) + H(phi(i,j)*sign))/2.0 * alpha/(h*h);
-         ym = (i > 1) * (L1dot(smooth(i-1,j), EPSILON_S) + L1dot(smooth(i,j), EPSILON_S))/2.0 * (H(phi(i-1,j)*sign) + H(phi(i,j)*sign))/2.0 * alpha/(h*h);
-         yp = (i < p.rows - 2) * (L1dot(smooth(i+1,j), EPSILON_S) + L1dot(smooth(i,j), EPSILON_S))/2.0 * (H(phi(i+1,j)*sign) + H(phi(i,j)*sign))/2.0 * alpha/(h*h);
+         xm = (j > 1) * (smooth(i,j-1)[0] + smooth(i,j)[0])/2.0 * (H(phi(i,j-1)*sign) + H(phi(i,j)*sign))/2.0 * alpha/(h*h);
+         xp = (j < p.cols - 2) * (smooth(i,j+1)[0] + smooth(i,j)[0])/2.0 * (H(phi(i,j+1)*sign) + H(phi(i,j)*sign))/2.0 * alpha/(h*h);
+         ym = (i > 1) * (smooth(i-1,j)[2] + smooth(i,j)[2])/2.0 * (H(phi(i-1,j)*sign) + H(phi(i,j)*sign))/2.0 * alpha/(h*h);
+         yp = (i < p.rows - 2) * (smooth(i+1,j)[2] + smooth(i,j)[2])/2.0 * (H(phi(i+1,j)*sign) + H(phi(i,j)*sign))/2.0 * alpha/(h*h);
          sum = xm + xp + ym + yp;
 
 
-         // compute du
-         // data terms
-         tmp = mask(i,j) * H(kappa * phi(i,j) * sign) * L1dot(data(i,j), EPSILON_D) * (t(i,j)[3] * p(i,j)[0] + t(i,j)[5]);
+         tmp = H(kappa*phi(i,j)*sign) * L1dot(data(i,j)) * (t(i,j)[3] * p(i,j)[0] + t(i,j)[5]);
 
          // smoothness terms
          tmp = tmp
@@ -318,8 +343,23 @@ void updateV(const cv::Mat_<cv::Vec2d> &f,
                - yp * (f(i+1,j)[1] + p(i+1,j)[1])
                + sum * f(i,j)[1];
 
+         // remaining neighboorhoods
+         tmp += (j < p.cols - 2) * ( i > 1) * (i < p.rows - 2) *
+               -(alpha/(h*h)) * (smooth(i,j+1)[1] + smooth(i,j)[1])/8.0 * (H(phi(i,j+1)*sign) + H(phi(i,j)*sign))/2.0 *
+               (f(i+1,j+1)[1] + p(i+1,j+1)[1] + f(i+1,j)[1] + p(i+1,j)[1] - f(i-1,j)[1] - p(i-1,j)[1] - f(i-1,j+1)[1] - p(i-1,j+1)[1]);
+         tmp -= (j > 1) * (i > 1) * ( i < p.rows - 2) *
+               -(alpha/(h*h)) * (smooth(i,j)[1] + smooth(i,j-1)[1])/8.0 * (H(phi(i,j-1)*sign) + H(phi(i,j)*sign))/2.0 *
+               (f(i+1,j)[1] + p(i+1,j)[1] + f(i+1,j-1)[1] + p(i+1,j-1)[1] - f(i-1,j)[1] - p(i-1,j)[1] - f(i-1,j-1)[1] - p(i-1,j-1)[1]);
+         tmp += (i < p.rows - 2) * (j > 1) * (j < p.cols - 2) *
+               -(alpha/(h*h)) * (smooth(i+1,j)[1] + smooth(i,j)[1])/8.0 * (H(phi(i+1,j)*sign) + H(phi(i,j)*sign))/2.0 *
+               (f(i+1,j+1)[1] + p(i+1,j+1)[1] + f(i,j+1)[1] + p(i,j+1)[1] - f(i,j-1)[1] - p(i,j-1)[1] - f(i+1,j-1)[1] - p(i+1,j-1)[1]);
+         tmp -= (i > 1) * (j > 1) * (j < p.cols - 2) *
+               -(alpha/(h*h)) * (smooth(i,j)[1] + smooth(i-1,j)[1])/8.0 * (H(phi(i-1,j)*sign) + H(phi(i,j)*sign))/2.0 *
+               (f(i,j+1)[1] + p(i,j+1)[1] + f(i-1,j+1)[1] + p(i-1,j+1)[1] - f(i,j-1)[1] - p(i,j-1)[1] - f(i-1,j-1)[1] - p(i-1,j-1)[1]);
+
          // normalization
-         tmp = tmp /(- mask(i,j) * H(kappa * phi(i,j) *sign) * L1dot(data(i,j), EPSILON_D) * t(i,j)[1] - sum);
+         tmp = tmp /(- H(kappa*phi(i,j)*sign) * L1dot(data(i,j)) * t(i,j)[1] - sum);
+
          p(i,j)[1] = (1.0-omega) * p(i,j)[1] + omega * tmp;
 
       /*} else {
@@ -347,11 +387,9 @@ void updateV(const cv::Mat_<cv::Vec2d> &f,
 }
 
 
-
-void computeSmoothnessTerm(const cv::Mat_<cv::Vec2d> &f, const cv::Mat_<cv::Vec2d> &p, cv::Mat_<double> &smooth, double hx, double hy){
+void computeAnisotropicSmoothnessTerm(const cv::Mat_<cv::Vec2d> &f, const cv::Mat_<cv::Vec2d> &p, cv::Mat_<cv::Vec4d> &smooth, double hx, double hy){
   cv::Mat fc[2], pc[2];
-  cv::Mat flow_u, flow_v, ux, uy, vx, vy, kernel;
-  double tmp=0;
+  cv::Mat flow_u, flow_v, ux, uy, vx, vy, kernel, eigenvalues, eigenvectors;
 
   // split flowfield in components
   cv::split(f, fc);
@@ -363,8 +401,6 @@ void computeSmoothnessTerm(const cv::Mat_<cv::Vec2d> &f, const cv::Mat_<cv::Vec2
   flow_u = flow_u + pc[0];
   flow_v = flow_v + pc[1];
 
-  //std::cout << flow_u.at<cv::Vec2d>(10,10) << ":" << flow_v.at<cv::Vec2d>(10,10) << std::endl;
-
   // derivates in y-direction
   kernel = (cv::Mat_<double>(3,1) << -1, 0, 1);
   cv::filter2D(flow_u, uy, CV_64F, kernel * 1.0/(2*hy), cv::Point(-1,-1), 0, cv::BORDER_REPLICATE);
@@ -375,11 +411,28 @@ void computeSmoothnessTerm(const cv::Mat_<cv::Vec2d> &f, const cv::Mat_<cv::Vec2
   cv::filter2D(flow_u, ux, CV_64F, kernel * 1.0/(2*hx), cv::Point(-1,-1), 0, cv::BORDER_REPLICATE);
   cv::filter2D(flow_v, vx, CV_64F, kernel * 1.0/(2*hx), cv::Point(-1,-1), 0, cv::BORDER_REPLICATE);
 
+  cv::Mat tmparray(2,2, CV_64F);
   for (int i = 0; i < p.rows; i++){
     for (int j = 0; j < p.cols; j++){
-      tmp = ux.at<double>(i,j) * ux.at<double>(i,j) + uy.at<double>(i,j) * uy.at<double>(i,j);
-      tmp = tmp + vx.at<double>(i,j) * vx.at<double>(i,j) + vy.at<double>(i,j) * vy.at<double>(i,j);
-      smooth(i,j) = tmp;
+      // compute nabla(u)*nabla(u)^T + nabla(v)*nabla(v)^T
+      tmparray.at<double>(0,0) = ux.at<double>(i,j) * ux.at<double>(i,j) + vx.at<double>(i,j) * vx.at<double>(i,j);
+      tmparray.at<double>(1,0) = ux.at<double>(i,j) * uy.at<double>(i,j) + vx.at<double>(i,j) * vy.at<double>(i,j);
+      tmparray.at<double>(0,1) = ux.at<double>(i,j) * uy.at<double>(i,j) + vx.at<double>(i,j) * vy.at<double>(i,j);
+      tmparray.at<double>(1,1) = uy.at<double>(i,j) * uy.at<double>(i,j) + vy.at<double>(i,j) * vy.at<double>(i,j);
+      //std::cout << tmparray << " : ";
+      // compute eigenvalues
+      cv::eigen(tmparray, eigenvalues, eigenvectors);
+
+      // scale eigenvalues
+      eigenvalues.at<double>(0) = L1dot(eigenvalues.at<double>(0));
+      eigenvalues.at<double>(1) = L1dot(eigenvalues.at<double>(1));
+
+      // recompute array with scaled eigenvalues
+      tmparray = eigenvectors.inv() * cv::Mat::diag(eigenvalues) * eigenvectors;
+      smooth(i,j)[0] = tmparray.at<double>(0,0);
+      smooth(i,j)[1] = tmparray.at<double>(0,1);
+      smooth(i,j)[2] = tmparray.at<double>(1,1);
+      smooth(i,j)[3] = L1(eigenvalues.at<double>(0)) + L1(eigenvalues.at<double>(1));
     }
   }
 }
@@ -407,8 +460,8 @@ void computeDataTerm(const cv::Mat_<cv::Vec2d> &p, const cv::Mat_<cv::Vec6d> &t,
 
 void updatePhi(const cv::Mat_<double> &data_p,
                const cv::Mat_<double> &data_m,
-               const cv::Mat_<double> &smooth_p,
-               const cv::Mat_<double> &smooth_m,
+               const cv::Mat_<cv::Vec4d> &smooth_p,
+               const cv::Mat_<cv::Vec4d> &smooth_m,
                cv::Mat_<double> &phi,
                const std::unordered_map<std::string, parameter> &parameters,
                double h){
@@ -422,10 +475,21 @@ void updatePhi(const cv::Mat_<double> &data_p,
 
   double c1, c2, c3, c4, m, c, tmp;
 
-
+  bool stop = false;
   for (int i = 1; i < phi.rows-1; i++){
     for (int j = 1; j < phi.cols-1; j++){
 
+      if (std::isnan(smooth_p(i,j)[3]) || std::isnan(smooth_m(i,j)[3])){
+        std::cout << i << "," << j << "smooth is not a number" << std::endl;
+        std::cout << smooth_p(i,j)[0] << ":" << smooth_p(i,j)[1] << ":" << smooth_p(i,j)[2] << ":" << smooth_p(i,j)[3] << std::endl;
+        std::cout << smooth_m(i,j)[0] << ":" << smooth_m(i,j)[1] << ":" << smooth_m(i,j)[2] << ":" << smooth_m(i,j)[3] << std::endl;
+        std::cout << phi(i,j) << " " << phi(i+1,j) << " " << phi(i-1,j) << " " << phi(i,j+1) << " " << phi(i,j-1) << std::endl;
+        stop = true;
+      }
+      if (std::isnan(phi(i,j))){
+        std::cout << i << "," << j << " phi before is not a number" << std::endl;
+        stop = true;
+      }
 
       // using the vese chan discretization
       tmp = (j< phi.cols-2) * std::pow((phi(i,j+1) - phi(i,j))/h, 2) + (i>1)*(i<phi.rows-2)*std::pow((phi(i+1,j) - phi(i-1,j))/(2*h),2);
@@ -443,24 +507,34 @@ void updatePhi(const cv::Mat_<double> &data_p,
       m = (deltat*Hdot(phi(i,j))*beta)/(h*h);
       c = 1+m*(c1+c2+c3+c4);
       phi(i,j) = (1.0/c)*(phi(i,j) + m*(c1*phi(i,j+1)+c2*phi(i,j-1)+c3*phi(i+1,j)+c4*phi(i-1,j))
-                          -deltat*kappa*Hdot(kappa*phi(i,j))*(L1(data_p(i,j), EPSILON_D) - L1(data_m(i,j), EPSILON_D))
-                          -deltat*alpha*Hdot(phi(i,j))*(L1(smooth_p(i,j), EPSILON_S) - L1(smooth_m(i,j), EPSILON_S)));
+                          -deltat*kappa*Hdot(kappa*phi(i,j))*(L1(data_p(i,j)) - L1(data_m(i,j)))
+                          -deltat*alpha*Hdot(phi(i,j))*(smooth_p(i,j)[3] - smooth_m(i,j)[3]));
+      if (std::isnan(phi(i,j))){
+        std::cout << i << "," << j << " phi is not a number" << std::endl;
+        stop = true;
+      }
+
+      if (stop){
+        std::exit(1);
+      }
+      
     }
   }
 
 }
 
-double L1(double value, double epsilon){
-  return (value < 0 ) ? 0 : std::sqrt(value + epsilon);
+double L1(double value){
+  return (value < 0 ) ? 0 : std::sqrt(value + EPSILON);
 }
 
 
-double L1dot(double value, double epsilon){
+double L1dot(double value){
   value = value < 0 ? 0 : value;
-  return 1.0/(2.0 * std::sqrt(value + epsilon));
+  return 1.0/(2.0 * std::sqrt(value + EPSILON));
 }
 
 double H(double x){
+  //return 1;
   return 0.5 * (1 + (2.0/M_PI)*std::atan(x/DELTA));
 }
 

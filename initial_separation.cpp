@@ -1,8 +1,6 @@
 #include "initial_separation.hpp"
 
 
-#define EPSILON 0.001
-
 void initial_segmentation(const cv::Mat_<cv::Vec2d> &flowfield,
                           //const cv::Mat_<cv::Vec2d> &initialflowfield
                           cv::Mat_<double> &phi,
@@ -21,7 +19,7 @@ void initial_segmentation(const cv::Mat_<cv::Vec2d> &flowfield,
     }
   }
 
-  //phi = 1;
+  //phi = 0;
   
 }
 
