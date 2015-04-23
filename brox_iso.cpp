@@ -130,9 +130,6 @@ void computeFlowField(const cv::Mat &image1, const cv::Mat &image2, std::unorder
     // add partial flowfield to complete flowfield
     flowfield = flowfield + partial;
   }
-  cv::Mat m;
-  computeSegmentationImage(mask, i1, m);
-  cv::imshow("mask", m);
   flowfield = flowfield(cv::Rect(1, 1, image1.cols, image1.rows));
 }
 

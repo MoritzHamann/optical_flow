@@ -50,6 +50,7 @@ void computeColorFlowField(const cv::Mat_<cv::Vec2d> &f, cv::Mat &img){
 }
 
 
+
 /**
   * reads the groundtruth - stored in filename - into a vectorfield
   * @param std::string filename The filename of the groundtruth file
@@ -244,10 +245,13 @@ double CalcAngularError(const cv::Mat_<cv::Vec2d> &flowfield, const cv::Mat_<cv:
 
 
 void computeSegmentationImage(const cv::Mat_<double> &phi, const cv::Mat_<uchar> &image1, cv::Mat &segmentation){
+  double max, min;
+  cv::minMaxIdx(phi, &min, &max);
+  std::cout << min << " " << max << std::endl;
   segmentation.create(phi.size(), CV_8U);
   for (int i = 0; i < phi.rows; i++){
     for (int j = 0; j < phi.cols; j++){
-      segmentation.at<uchar>(i,j) = (phi(i,j) > 0) ? 254 : 0;
+      segmentation.at<uchar>(i,j) = (phi(i,j) + std::abs(min)) * 255.0/(std::abs(max)+std::abs(min));
       if (std::isnan(segmentation.at<uchar>(i,j)) || !std::isfinite(segmentation.at<uchar>(i,j))){
         std::cout << "error segementation" << std::endl;
       }

@@ -49,11 +49,8 @@ int main(int argc, char *argv[]){
   f.release();
 
 
-  cv::Mat_<cv::Vec2d> truth;
   // load truthfile
-  if (truthfilename != ""){
-    loadBarronFile(truthfilename, truth);
-  }
+  GroundTruth truth(truthfilename);
 
   // create window
   cv::namedWindow(WINDOW_NAME, cv::WINDOW_AUTOSIZE);
@@ -89,7 +86,7 @@ int main(int argc, char *argv[]){
     cv::Mat right(displayimage, cv::Rect(image1.cols, 0, image1.cols, image1.rows));
     cv::cvtColor(image1, left, CV_GRAY2RGB);
     computeColorFlowField(flowfield, right);
-    computeColorFlowFieldError((flowfield-truth), error);
+    computeColorFlowFieldError((flowfield-truth.truthfield), error);
     cv::imshow("error", error);
 
     cv::imshow(WINDOW_NAME, displayimage);
@@ -107,6 +104,12 @@ int main(int argc, char *argv[]){
       // initial segmentation
       initial_segmentation(initialflow, phi, parameters);
       flowfield = initialflow.clone();
+      computeSegmentationImage(phi, image1, segmentation);
+      cv::imshow("segmentation", segmentation);
+      keyCode = cv::waitKey();
+      if (keyCode == 27){
+        continue;
+      }
 
       computeFlowField(image1, image2, parameters, flowfield, phi);
       computeSegmentationImage(phi, image1, segmentation);
@@ -118,7 +121,8 @@ int main(int argc, char *argv[]){
       }
 
       if (truthfilename != ""){
-        std::cout << "AAE: " << CalcAngularError(flowfield, truth) << std::endl;
+        std::cout << std::endl << "AAE: " << truth.computeAngularError(flowfield) << std::endl;
+        std::cout << "EPE: " << truth.computeEndpointError(flowfield) << std::endl;
       }
 
     }

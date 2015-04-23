@@ -6,6 +6,7 @@
 const double DELTA = 1.0;
 const double EPSILON_S = 0.01 * 0.01;
 const double EPSILON_D = 0.01 * 0.01;
+const double EPSILON_P = 0.01 * 0.01;
 
 
 void setupParameters(std::unordered_map<std::string, parameter> &parameters){
@@ -22,7 +23,10 @@ void setupParameters(std::unordered_map<std::string, parameter> &parameters){
   parameter deltat = {"deltat", 100, 100, 100};
   parameter phi_iter = {"phi_iter", 50, 100, 1};
   parameter iter_flow_before_phi = {"iter_flow_before_phi", 15, 100, 1};
-
+  parameter Tm = {"Tm", 50, 100, 1};
+  parameter Tr = {"Tr", 5, 20, 10};
+  parameter Ta = {"Ta", 10, 100, 100};
+  parameter blocksize = {"blocksize", 10, 100, 1};
 
   parameters.insert(std::make_pair<std::string, parameter>(alpha.name, alpha));
   parameters.insert(std::make_pair<std::string, parameter>(omega.name, omega));
@@ -37,6 +41,10 @@ void setupParameters(std::unordered_map<std::string, parameter> &parameters){
   parameters.insert(std::make_pair<std::string, parameter>(wrapfactor.name, wrapfactor));
   parameters.insert(std::make_pair<std::string, parameter>(nonlinear_step.name, nonlinear_step));
   parameters.insert(std::make_pair<std::string, parameter>(maxlevel.name, maxlevel));
+  parameters.insert(std::make_pair<std::string, parameter>(Tm.name, Tm));
+  parameters.insert(std::make_pair<std::string, parameter>(Ta.name, Ta));
+  parameters.insert(std::make_pair<std::string, parameter>(Tr.name, Tr));
+  parameters.insert(std::make_pair<std::string, parameter>(blocksize.name, blocksize));
 }
 
 
@@ -103,7 +111,7 @@ void computeFlowField(const cv::Mat &image1, const cv::Mat &image2, std::unorder
     cv::resize(flowfield_m, flowfield_m, i1.size(), 0, 0, cv::INTER_AREA);
     cv::resize(partial_p, partial_p, i1.size(), 0, 0, cv::INTER_AREA);
     cv::resize(partial_m, partial_m, i1.size(), 0, 0, cv::INTER_AREA);
-    cv::resize(phi, phi, i1.size(), 0, 0, cv::INTER_AREA);
+    cv::resize(phi, phi, i1.size(), 0, 0, cv::INTER_LINEAR);
     cv::resize(mask, mask, i1.size(), 0, 0, cv::INTER_NEAREST);
 
 
@@ -429,16 +437,21 @@ void updatePhi(const cv::Mat_<double> &data_p,
 
       // using the vese chan discretization
       tmp = (j< phi.cols-2) * std::pow((phi(i,j+1) - phi(i,j))/h, 2) + (i>1)*(i<phi.rows-2)*std::pow((phi(i+1,j) - phi(i-1,j))/(2*h),2);
-      c1 = (tmp == 0 || j > phi.cols-2) ? 0 : std::sqrt(1.0/tmp);
+      tmp = (tmp < 0) ? 0 : tmp;
+      c1 = std::sqrt(1.0/(tmp+EPSILON_P));
 
       tmp = (j>1)*std::pow((phi(i,j) - phi(i,j-1))/h, 2) + (i<phi.rows-2)*(i>1)*(j>1)*std::pow((phi(i+1,j-1) - phi(i-1,j-1))/(2*h),2);
-      c2 = (tmp == 0 || j < 1) ? 0 : std::sqrt(1.0/tmp);
+      tmp = (tmp < 0) ? 0 : tmp;
+      c2 = std::sqrt(1.0/(tmp+EPSILON_P));
 
       tmp = (j>1)*(j<phi.cols-2)*std::pow((phi(i,j+1) - phi(i,j-1))/(2*h), 2) + (i<phi.rows-2)*std::pow((phi(i+1,j) - phi(i,j))/(h),2);
-      c3 = (tmp == 0 || i > phi.rows-2) ? 0 : std::sqrt(1.0/tmp);
+      tmp = (tmp < 0) ? 0 : tmp;
+      c3 = std::sqrt(1.0/(tmp+EPSILON_P));
 
       tmp = (i>1)*(j>1)*(j<phi.cols-2)*std::pow((phi(i-1,j+1) - phi(i-1,j-1))/(2*h), 2) + (i>1)*std::pow((phi(i,j) - phi(i-1,j))/(h),2);
-      c4 = (tmp == 0 || i < 1) ? 0 : std::sqrt(1.0/tmp);
+      tmp = (tmp < 0) ? 0 : tmp;
+      c4 = std::sqrt(1.0/(tmp+EPSILON_P));
+
 
       m = (deltat*Hdot(phi(i,j))*beta)/(h*h);
       c = 1+m*(c1+c2+c3+c4);

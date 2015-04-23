@@ -24,7 +24,7 @@ int main(int argc, char *argv[]){
 
   // make sure we have enough commandline arguments
   if (argc < 3){
-    std::cout << "use parameters: filename1, filename2, (filenametruth)" << std::endl;;
+    std::cout << "use parameters: filename1, filename2, (savefilename), (filenametruth)" << std::endl;;
     std::exit(1);
   }
 
@@ -58,12 +58,9 @@ int main(int argc, char *argv[]){
     std::exit(1);
   }
 
-  cv::Mat_<cv::Vec2d> truth;
   // load truthfile
-  if (truthfilename != ""){
-    loadBarronFile(truthfilename, truth);
-  }
-
+  GroundTruth truth(truthfilename);
+  
   // create window
   cv::namedWindow(WINDOW_NAME, cv::WINDOW_AUTOSIZE);
 
@@ -95,7 +92,7 @@ int main(int argc, char *argv[]){
     cv::cvtColor(image1, left, CV_GRAY2RGB);
     right = right * 0;
     computeColorFlowField(flowfield, right);
-    computeColorFlowFieldError((flowfield-truth), error);
+    computeColorFlowFieldError((flowfield-truth.truthfield), error);
     cv::imshow("error", error);
 
     cv::imshow(WINDOW_NAME, displayimage);
@@ -117,7 +114,8 @@ int main(int argc, char *argv[]){
       }
 
       if (truthfilename != ""){
-        std::cout << "AAE: " << CalcAngularError(flowfield, truth) << std::endl;
+        std::cout << std::endl << "AAE: " << truth.computeAngularError(flowfield) << std::endl;
+        std::cout << "EPE: " << truth.computeEndpointError(flowfield) << std::endl;
       }
     }
 
