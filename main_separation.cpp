@@ -9,6 +9,7 @@
 
 
 #define WINDOW_NAME "optical flow"
+#define PARAMETER_WINDOW_NAME "parameter"
 
 
 int main(int argc, char *argv[]){
@@ -67,17 +68,20 @@ int main(int argc, char *argv[]){
 
   // create level set function
   cv::Mat_<double> phi(image1.size());
-  phi = 0;
+  cv::Mat_<double> segmentation(image1.size());
+  phi = 1;
+  segmentation = 1;
 
   // create image for display and helper matrixes
   cv::Mat displayimage(image1.rows, image1.cols + flowfield.cols, CV_8UC3);
 
   // create trackbars for every parameter
+  cv::namedWindow(PARAMETER_WINDOW_NAME, CV_WINDOW_NORMAL);
   for (auto &i: parameters){
-    cv::createTrackbar(i.first, WINDOW_NAME, &i.second.value, i.second.maxvalue, TrackbarCallback, static_cast<void*>(&i.second));
+    cv::createTrackbar(i.first, PARAMETER_WINDOW_NAME, &i.second.value, i.second.maxvalue, TrackbarCallback, static_cast<void*>(&i.second));
   }
 
-  cv::Mat error, segmentation;
+  cv::Mat error, segmentation_display;
   // main loop which recomputes the optical flow with the new parameters
   while(true){
 
@@ -98,22 +102,22 @@ int main(int argc, char *argv[]){
       std::exit(0);
     }
 
+    if (keyCode == 105){
+      initial_segmentation(initialflow, segmentation, parameters);
+      computeSegmentationImage(segmentation, image1, segmentation_display);
+      cv::imshow("segmentation", segmentation_display);
+    }
+
     // recompute on Enter Key
     if (keyCode == 13){
-
-      // initial segmentation
-      initial_segmentation(initialflow, phi, parameters);
+      
+      // initialize phi with initial segmentation
+      phi = segmentation.clone();
       flowfield = initialflow.clone();
-      computeSegmentationImage(phi, image1, segmentation);
-      cv::imshow("segmentation", segmentation);
-      keyCode = cv::waitKey();
-      if (keyCode == 27){
-        continue;
-      }
-
+      
       computeFlowField(image1, image2, parameters, flowfield, phi);
-      computeSegmentationImage(phi, image1, segmentation);
-      cv::imshow("segmentation", segmentation);
+      computeSegmentationImage(phi, image1, segmentation_display);
+      cv::imshow("segmentation", segmentation_display);
 
       std::cout << std::endl << "recomputed flow with:" << std::endl;
       for (auto i: parameters){

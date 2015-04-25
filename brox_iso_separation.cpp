@@ -23,9 +23,9 @@ void setupParameters(std::unordered_map<std::string, parameter> &parameters){
   parameter deltat = {"deltat", 100, 100, 100};
   parameter phi_iter = {"phi_iter", 50, 100, 1};
   parameter iter_flow_before_phi = {"iter_flow_before_phi", 15, 100, 1};
-  parameter Tm = {"Tm", 50, 100, 1};
+  parameter Tm = {"Tm", 50, 100, 10};
   parameter Tr = {"Tr", 5, 20, 10};
-  parameter Ta = {"Ta", 10, 100, 100};
+  parameter Ta = {"Ta", 10, 200, 100};
   parameter blocksize = {"blocksize", 10, 100, 1};
 
   parameters.insert(std::make_pair<std::string, parameter>(alpha.name, alpha));
@@ -86,8 +86,10 @@ void computeFlowField(const cv::Mat &image1, const cv::Mat &image2, std::unorder
   cv::Mat_<double> mask(i1smoothed.size());
   mask = 1;
 
-  partial_p = cv::Vec2d(0,0);
-  partial_m = cv::Vec2d(0,0);
+  //partial_p = cv::Vec2d(0,0);
+  //partial_m = cv::Vec2d(0,0);
+  partial_p = flowfield.clone();
+  partial_m = flowfield.clone();
   flowfield = cv::Vec2d(0,0);
   flowfield_p = cv::Vec2d(0,0);
   flowfield_m = cv::Vec2d(0,0);
@@ -262,10 +264,10 @@ void updateU(const cv::Mat_<cv::Vec2d> &f,
         // for now use smoothess term here
 
         // test for borders
-        xp =  (j < p.cols-2) * 1.0/(h*h) * (L1dot(smooth(i,j+1)) + L1dot(smooth(i,j)))/2.0;
-        xm =  (j > 1) * 1.0/(h*h) * (L1dot(smooth(i,j-1)) + L1dot(smooth(i,j)))/2.0;
-        yp =  (i < p.rows-2) * 1.0/(h*h) * (L1dot(smooth(i+1,j)) + L1dot(smooth(i,j)))/2.0;
-        ym =  (i > 1) * 1.0/(h*h) * (L1dot(smooth(i-1,j)) + L1dot(smooth(i,j)))/2.0;
+        xp =  (j < p.cols-2) * 1.0/(h*h) * (L1dot(smooth(i,j+1), EPSILON_S) + L1dot(smooth(i,j), EPSILON_S))/2.0;
+        xm =  (j > 1) * 1.0/(h*h) * (L1dot(smooth(i,j-1), EPSILON_S) + L1dot(smooth(i,j), EPSILON_S))/2.0;
+        yp =  (i < p.rows-2) * 1.0/(h*h) * (L1dot(smooth(i+1,j), EPSILON_S) + L1dot(smooth(i,j), EPSILON_S))/2.0;
+        ym =  (i > 1) * 1.0/(h*h) * (L1dot(smooth(i-1,j), EPSILON_S) + L1dot(smooth(i,j), EPSILON_S))/2.0;
         sum = xp + xm + yp + ym;
 
         p(i,j)[0] = (1.0-omega) * p(i,j)[0];
@@ -334,10 +336,10 @@ void updateV(const cv::Mat_<cv::Vec2d> &f,
         // pixel lies out of the segment
 
         // test for borders
-        xp =  (j < p.cols-2) * 1.0/(h*h) * (L1dot(smooth(i,j+1)) + L1dot(smooth(i,j)))/2.0;
-        xm =  (j > 1) * 1.0/(h*h) * (L1dot(smooth(i,j-1)) + L1dot(smooth(i,j)))/2.0;
-        yp =  (i < p.rows-2) * 1.0/(h*h) * (L1dot(smooth(i+1,j)) + L1dot(smooth(i,j)))/2.0;
-        ym =  (i > 1) * 1.0/(h*h) * (L1dot(smooth(i-1,j)) + L1dot(smooth(i,j)))/2.0;
+        xp =  (j < p.cols-2) * 1.0/(h*h) * (L1dot(smooth(i,j+1), EPSILON_S) + L1dot(smooth(i,j), EPSILON_S))/2.0;
+        xm =  (j > 1) * 1.0/(h*h) * (L1dot(smooth(i,j-1), EPSILON_S) + L1dot(smooth(i,j), EPSILON_S))/2.0;
+        yp =  (i < p.rows-2) * 1.0/(h*h) * (L1dot(smooth(i+1,j), EPSILON_S) + L1dot(smooth(i,j), EPSILON_S))/2.0;
+        ym =  (i > 1) * 1.0/(h*h) * (L1dot(smooth(i-1,j), EPSILON_S) + L1dot(smooth(i,j), EPSILON_S))/2.0;
         sum = xp + xm + yp + ym;
 
         p(i,j)[1] = (1.0-omega) * p(i,j)[1];

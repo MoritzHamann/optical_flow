@@ -51,64 +51,6 @@ void computeColorFlowField(const cv::Mat_<cv::Vec2d> &f, cv::Mat &img){
 
 
 
-/**
-  * reads the groundtruth - stored in filename - into a vectorfield
-  * @param std::string filename The filename of the groundtruth file
-  * @return cv::Mat The groundtruh as a vector field
-*/
-void loadBarronFile(std::string filename, cv::Mat_<cv::Vec2d> &truth){
-
-  FILE *file = fopen(filename.c_str(), "r");
-  if (file == NULL){
-    std::cout << "Error opening Barron File: " << filename << "! Exit" << std::endl;
-    std::exit(1);
-  }
-
-  // read the header information
-  float help;
-  std::fread (&help, sizeof(float), 1, file);
-  int nx_and_offsetx  = (int) help;
-  std::fread (&help, sizeof(float), 1, file);
-  int ny_and_offsety  = (int) help;
-  std::fread (&help, sizeof(float), 1, file);
-  int nx  = (int) help;
-  std::fread (&help, sizeof(float), 1, file);
-  int ny  = (int) help;
-  std::fread (&help, sizeof(float), 1, file);
-  int offsetx = (int) help;
-  std::fread (&help, sizeof(float), 1, file);
-  int offsety = (int) help;
-
-  // initialize truth vector field
-  truth.create(ny, nx);
-
-  // make tmp array
-  std::vector< std::vector<double> > tmpu(nx_and_offsetx, std::vector<double>(ny_and_offsety));
-  std::vector< std::vector<double> > tmpv(nx_and_offsetx, std::vector<double>(ny_and_offsety));
-
-  // read complete data
-  for (int j = 0; j < ny_and_offsety; j++){
-    for (int i = 0; i < nx_and_offsetx; i++){
-      fread(&help, sizeof(float), 1, file);
-      tmpu[i][j] = (double)help;
-
-      fread(&help, sizeof(float), 1, file);
-      tmpv[i][j] = (double)help;
-    }
-  }
-  fclose(file);
-
-  // set data without crop
-  for (int j = 0; j < ny; j++){
-    for (int i = 0; i < nx; i++){
-      truth(j,i)[0] = tmpu[i + offsetx][j + offsety];
-      truth(j,i)[1] = tmpv[i + offsetx][j + offsety];
-    }
-  }
-
-  //return truth;
-}
-
 
 void TrackbarCallback(int value, void *userdata){
   parameter *p = static_cast<parameter*>(userdata);
@@ -213,36 +155,6 @@ void computeColorFlowField2(const cv::Mat_<cv::Vec2d> &flowfield, cv::Mat &img){
 
 
 
-double CalcAngularError(const cv::Mat_<cv::Vec2d> &flowfield, const cv::Mat_<cv::Vec2d> truth){
-  double amount = 0;
-  double tmp1 = 0;
-  double tmp2 = 0;
-  double sum_l2 = 0;
-  double sum_ang = 0;
-
-  for (int i = 0; i < flowfield.rows; i++) {
-    for (int j = 0; j < flowfield.cols; j++){
-      // test if reference flow vector exists
-      if (truth(i,j)[0] != 100.0 || truth(i,j)[1] != 100.0){
-        amount++;
-        tmp1 = truth(i,j)[0] - flowfield(i,j)[0];
-        tmp2 = truth(i,j)[1] - flowfield(i,j)[1];
-
-        sum_l2 += sqrt(tmp1*tmp1 + tmp2*tmp2);
-        tmp1 = (truth(i,j)[0] * flowfield(i,j)[0] + truth(i,j)[1] * flowfield(i,j)[1] + 1.0)
-   		     / sqrt( (truth(i,j)[0] * truth(i,j)[0] + truth(i,j)[1] * truth(i,j)[1] + 1.0)
-   			     * (flowfield(i,j)[0] * flowfield(i,j)[0] + flowfield(i,j)[1] * flowfield(i,j)[1] + 1.0) );
-
-        if (tmp1 > 1.0) tmp1 = 1.0;
-        if (tmp1 < - 1.0) tmp1 = - 1.0;
-        sum_ang += acos(tmp1) * 180.0/M_PI;
-      }
-    }
-  }
-
-  return sum_ang / amount;
-}
-
 
 void computeSegmentationImage(const cv::Mat_<double> &phi, const cv::Mat_<uchar> &image1, cv::Mat &segmentation){
   double max, min;
@@ -251,7 +163,8 @@ void computeSegmentationImage(const cv::Mat_<double> &phi, const cv::Mat_<uchar>
   segmentation.create(phi.size(), CV_8U);
   for (int i = 0; i < phi.rows; i++){
     for (int j = 0; j < phi.cols; j++){
-      segmentation.at<uchar>(i,j) = (phi(i,j) + std::abs(min)) * 255.0/(std::abs(max)+std::abs(min));
+      //segmentation.at<uchar>(i,j) = (phi(i,j) + std::abs(min)) * 255.0/(std::abs(max)+std::abs(min));
+      segmentation.at<uchar>(i,j) = (phi(i,j) > 0) ? 255 : 0;
       if (std::isnan(segmentation.at<uchar>(i,j)) || !std::isfinite(segmentation.at<uchar>(i,j))){
         std::cout << "error segementation" << std::endl;
       }

@@ -9,16 +9,6 @@ void initial_segmentation(const cv::Mat_<cv::Vec2d> &flowfield,
 
   segementFlowfield(flowfield, phi, parameters);
 
-  /*for (int i = 0; i < phi.rows; i++){
-    for (int j = 0; j < phi.cols; j++){
-      if (flowfield(i,j)[0] > 1 && flowfield(i,j)[1] < 0.5){
-        phi(i,j) = 1;
-      } else {
-        phi(i,j) = -1;
-      }
-    }
-  }*/
-
   // box median filter of size 7x7 to get smooth edges on segement borders
   cv::blur(phi, phi, cv::Size(7,7), cv::Point(-1, -1), cv::BORDER_REPLICATE);
   
