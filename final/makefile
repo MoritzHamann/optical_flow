@@ -2,11 +2,8 @@ COMPILER=clang++
 FLAGS=-Wno-c++11-extensions -Wall -flto -O3
 LIBS=-lopencv_core -lopencv_highgui -lopencv_imgproc
 
-test:
-	$(COMPILER) $(FLAGS) $(LIBS) test.cpp -o test
-
 hornschunck:
-	$(COMPILER) $(FLAGS) $(LIBS) main.cpp misc.cpp tensor_computation.cpp hornschunck_with_gradient.cpp -o hornschunck
+	$(COMPILER) $(FLAGS) $(LIBS) main.cpp shared/misc.cpp shared/tensor_computation.cpp standart/hornschunck/hornschunck.cpp -o hornschunck
 
 brox_iso:
 	$(COMPILER) $(FLAGS) $(LIBS) main.cpp misc.cpp tensor_computation.cpp brox_iso.cpp -o brox_iso

@@ -14,7 +14,7 @@ struct parameter {
   std::string name;
   int value;
   int maxvalue;
-  int divfactor;
+  double scale;
 };
 
 struct tensor {
@@ -44,6 +44,7 @@ class GroundTruth {
  public:
   cv::Mat_<cv::Vec2d> truthfield;
   cv::Mat_<int> mask;
+  bool isSet = false;
 
   GroundTruth(std::string filename){
     
@@ -67,6 +68,13 @@ class GroundTruth {
       std::cout << "unkown file format for ground truth" << std::endl;
       return;
     }
+  }
+
+
+  GroundTruth(cv::Mat_<cv::Vec2d> &gt, cv::Mat_<int> &truthmask){
+    truthfield = gt.clone();
+    mask = truthmask.clone();
+    isSet = true;
   }
 
 
@@ -120,7 +128,6 @@ class GroundTruth {
 
 
  private:
-  bool isSet = false;
   
 
   void loadBarrenFile(std::string filename){

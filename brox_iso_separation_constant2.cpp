@@ -3,7 +3,7 @@
 */
 
 #include "brox_iso_separation.hpp"
-const double DELTA = 1;
+const double DELTA = 0.1;
 const double EPSILON_S = 0.01 * 0.01;
 const double EPSILON_D = 0.01 * 0.01;
 const double EPSILON_P = 0.01 * 0.01;
@@ -21,7 +21,7 @@ void setupParameters(std::unordered_map<std::string, parameter> &parameters){
   parameter kappa = {"kappa", 100, 100, 100};
   parameter beta = {"beta", 150, 1000, 100};
   parameter deltat = {"deltat", 100, 100, 100};
-  parameter phi_iter = {"phi_iter", 50, 100, 1};
+  parameter phi_iter = {"phi_iter", 50, 1000, 1};
   parameter iter_flow_before_phi = {"iter_flow_before_phi", 15, 100, 1};
   parameter Tm = {"Tm", 50, 100, 10};
   parameter Tr = {"Tr", 5, 20, 10};
@@ -87,23 +87,9 @@ void computeFlowField(const cv::Mat &image1, const cv::Mat &image2, std::unorder
   mask = 1;
 
   // initialization
-  //flowfield = initialflow.clone();
-  //flowfield_p = initialflow.clone();
-  //flowfield_m = initialflow.clone();
-  
   flowfield = cv::Vec2d(0,0);
   flowfield_p = cv::Vec2d(0,0);
   flowfield_m = cv::Vec2d(0,0);
-  
-  /*flowfield = initialflow.clone();
-  for (int i = 0; i < flowfield.rows; i++) {
-    for (int j = 0; j < flowfield.cols; j++) {
-      flowfield_p(i,j)[0] = (phi(i,j) > 0) ? initialflow(i,j)[0] : 0;
-      flowfield_p(i,j)[1] = (phi(i,j) > 0) ? initialflow(i,j)[1] : 0;
-      flowfield_m(i,j)[0] = (phi(i,j) < 0) ? initialflow(i,j)[0] : 0;
-      flowfield_m(i,j)[1] = (phi(i,j) < 0) ? initialflow(i,j)[1] : 0;
-    }
-  }*/
 
   // loop over levels
   for (int l = maxlevel; l >= 0; l--){
@@ -132,11 +118,11 @@ void computeFlowField(const cv::Mat &image1, const cv::Mat &image2, std::unorder
     partial_m = cv::Vec2d(0,0);
 
     // remap image
-    cv::Mat i2mapped = i2.clone();
-    remap_border(i2mapped, flowfield, mask, h);
+    copyMakeBorder(mask, mask, 1, 1, 1, 1, cv::BORDER_CONSTANT, 1);
+    remap_border(i2, flowfield, mask, h);
 
     // compute tensors
-    cv::Mat_<cv::Vec6d> t = (1.0 - gamma) * ComputeBrightnessTensor(i1, i2mapped, h, h) + gamma * ComputeGradientTensor(i1, i2mapped, h, h);
+    cv::Mat_<cv::Vec6d> t = (1.0 - gamma) * ComputeBrightnessTensor(i1, i2, h, h) + gamma * ComputeGradientTensor(i1, i2, h, h);
 
     // add 1px border to flowfield, parital and tensor
     cv::copyMakeBorder(flowfield, flowfield, 1, 1, 1, 1, cv::BORDER_CONSTANT, 0);
@@ -146,7 +132,6 @@ void computeFlowField(const cv::Mat &image1, const cv::Mat &image2, std::unorder
     cv::copyMakeBorder(partial_m, partial_m, 1, 1, 1, 1, cv::BORDER_CONSTANT, 0);
     cv::copyMakeBorder(phi, phi, 1, 1, 1, 1, cv::BORDER_REPLICATE, 0);
     cv::copyMakeBorder(t, t, 1, 1, 1, 1, cv::BORDER_CONSTANT, 0);
-    cv::copyMakeBorder(mask, mask, 1, 1, 1, 1, cv::BORDER_CONSTANT, 1);
 
 
     // main loop
@@ -154,49 +139,17 @@ void computeFlowField(const cv::Mat &image1, const cv::Mat &image2, std::unorder
     cv::Mat_<double> data_m(partial_p.size());
     cv::Mat_<double> smooth_p(partial_p.size());
     cv::Mat_<double> smooth_m(partial_p.size());
-    cv::Mat_<double> dataNL_p(partial_p.size());
-    cv::Mat_<double> dataNL_m(partial_p.size());
     for (int i = 0; i < maxiter; i++){
-      
-      if (i % nonlinear_step == 0 || i == 0){
-        // computed terms dont have L1 norm yet
-        computeDataTerm(partial_p, t, data_p);
-        computeDataTerm(partial_m, t, data_m);
-        computeSmoothnessTerm(flowfield_p, partial_p, smooth_p, h, h);
-        computeSmoothnessTerm(flowfield_m, partial_m, smooth_m, h, h);
-        computeDataTermNL(flowfield_p+partial_p, i1, i2, dataNL_p, mask, gamma, h);
-        computeDataTermNL(flowfield_m+partial_m, i1, i2, dataNL_m, mask, gamma, h);
-      }
-
       for (int j = 0; j < iter_flow_before_phi; j++){
-        /*if (j % nonlinear_step == 0 || j == 0){
+        if (j % nonlinear_step == 0 || j == 0){
           // computed terms dont have L1 norm yet
           computeDataTerm(partial_p, t, data_p);
           computeDataTerm(partial_m, t, data_m);
           computeSmoothnessTerm(flowfield_p, partial_p, smooth_p, h, h);
           computeSmoothnessTerm(flowfield_m, partial_m, smooth_m, h, h);
-        }*/
+        }
         Brox_step_iso_smooth(t, flowfield_p, flowfield_m, partial_p, partial_m, data_p, data_m, smooth_p, smooth_m, phi, mask, parameters, h);
       }
-      for (int k = 0; k < phi_iter; k++){
-        /*if (k % nonlinear_step == 0 || k == 0){
-          // computed terms dont have L1 norm yet
-          computeDataTerm(partial_p, t, data_p);
-          computeDataTerm(partial_m, t, data_m);
-          computeSmoothnessTerm(flowfield_p, partial_p, smooth_p, h, h);
-          computeSmoothnessTerm(flowfield_m, partial_m, smooth_m, h, h);
-        }*/
-        updatePhi(dataNL_p, dataNL_m, smooth_p, smooth_m, phi, parameters, mask, h);
-        //updatePhi(data_p, data_m, smooth_p, smooth_m, phi, parameters, mask, h);
-      }
-
-      /*computeColorFlowField(partial_p, fp_d);
-      cv::imshow("flowfield p", fp_d);
-      computeColorFlowField(partial_m, fm_d);
-      cv::imshow("flowfield m", fm_d);
-      computeSegmentationImageBW(phi, i1, seg_d);
-      cv::imshow("segmentation temp", seg_d);
-      cv::waitKey();*/
     }
 
     // add partial flowfield to complete flowfield
@@ -209,19 +162,48 @@ void computeFlowField(const cv::Mat &image1, const cv::Mat &image2, std::unorder
         flowfield(i,j) = (phi(i,j) > 0) ? flowfield_p(i,j) : flowfield_m(i,j);
       }
     }
+    
     // remove the borders
     flowfield = flowfield(cv::Rect(1, 1, i1.cols, i1.rows));
     flowfield_p = flowfield_p(cv::Rect(1, 1, i1.cols, i1.rows));
     flowfield_m = flowfield_m(cv::Rect(1, 1, i1.cols, i1.rows));
     phi = phi(cv::Rect(1, 1, i1.cols, i1.rows));
     mask = mask(cv::Rect(1, 1, i1.cols, i1.rows));
-    
-    
+
   }
 
-  
-  //flowfield = flowfield(cv::Rect(1,1,image1.cols, image1.rows));
-  //phi = phi(cv::Rect(1,1,image1.cols, image1.rows));
+  cv::Mat_<cv::Vec6d> t = (1.0 - gamma) * ComputeBrightnessTensor(i1, i2, h, h) + gamma * ComputeGradientTensor(i1, i2, h, h);
+  cv::copyMakeBorder(flowfield, flowfield, 1, 1, 1, 1, cv::BORDER_CONSTANT, 0);
+  cv::copyMakeBorder(flowfield_p, flowfield_p, 1, 1, 1, 1, cv::BORDER_CONSTANT, 0);
+  cv::copyMakeBorder(flowfield_m, flowfield_m, 1, 1, 1, 1, cv::BORDER_CONSTANT, 0);
+  cv::copyMakeBorder(phi, phi, 1, 1, 1, 1, cv::BORDER_REPLICATE, 0);
+  cv::copyMakeBorder(t, t, 1, 1, 1, 1, cv::BORDER_CONSTANT, 0);
+  cv::Mat_<double> data_p(partial_p.size());
+  cv::Mat_<double> data_m(partial_p.size());
+  cv::Mat_<double> smooth_p(partial_p.size());
+  cv::Mat_<double> smooth_m(partial_p.size());
+   
+  for (int k = 0; k < phi_iter; k++){
+    if (k % nonlinear_step == 0 || k == 0){
+      // computed terms dont have L1 norm yet
+      computeDataTerm(partial_p, t, data_p);
+      computeDataTerm(partial_m, t, data_m);
+      computeSmoothnessTerm(flowfield_p, partial_p, smooth_p, h, h);
+      computeSmoothnessTerm(flowfield_m, partial_m, smooth_m, h, h);
+    }
+    updatePhi(data_p, data_m, smooth_p, smooth_m, phi, parameters, mask, h);
+  }
+
+  computeColorFlowField(flowfield_p, fp_d);
+  cv::imshow("flowfield p", fp_d);
+  computeColorFlowField(flowfield_m, fm_d);
+  cv::imshow("flowfield m", fm_d);
+  computeSegmentationImageBW(phi, i1, seg_d);
+  cv::imshow("segmentation temp", seg_d);
+  cv::waitKey();
+
+  flowfield = flowfield(cv::Rect(1,1,image1.cols, image1.rows));
+  phi = phi(cv::Rect(1,1,image1.cols, image1.rows));
 }
 
 
@@ -456,44 +438,6 @@ void computeDataTerm(const cv::Mat_<cv::Vec2d> &p, const cv::Mat_<cv::Vec6d> &t,
   }
 }
 
-void computeDataTermNL(const cv::Mat_<cv::Vec2d> &f, const cv::Mat &image1, const cv::Mat &image2, cv::Mat_<double> &data, cv::Mat_<double> &mask, double gamma, double h) {
-  cv::Mat i1 = image1.clone();
-  cv::Mat i2 = image2.clone();
-  cv::Mat i1x, i2x, i1y, i2y, kernel;
-
-  // remove border of flowfield
-  //cv::Mat_<cv::Vec2d> &f = flowfield(cv::Rect(1, 1, flowfield.cols, flowfield.rows));
-
-  // add border to i1 and i2
-  cv::copyMakeBorder(i1, i1, 1, 1, 1, 1, cv::BORDER_REPLICATE, 0);
-  cv::copyMakeBorder(i2, i2, 1, 1, 1, 1, cv::BORDER_REPLICATE, 0);
-
-  // remap i2
-  std::cout << "nonlinear before remap" << std::endl;
-  remap_border(i2, f, mask, h);
-  std::cout << "nonlinear after remap" << std::endl;
-
-  // compute fx and fy for image 1 and image2
-  kernel = (cv::Mat_<double>(1,5) << 1, -8, 0, 8, -1);
-  cv::filter2D(i1, i1x, CV_64F, kernel * 1.0/(12*h), cv::Point(-1,-1), 0, cv::BORDER_REFLECT_101);
-  cv::filter2D(i2, i2x, CV_64F, kernel * 1.0/(12*h), cv::Point(-1,-1), 0, cv::BORDER_REFLECT_101);
-
-  kernel = (cv::Mat_<double>(5,1) << 1, -8, 0, 8, -1);
-  cv::filter2D(i1, i1y, CV_64F, kernel * 1.0/(12*h), cv::Point(-1,-1), 0, cv::BORDER_REFLECT_101);
-  cv::filter2D(i2, i2y, CV_64F, kernel * 1.0/(12*h), cv::Point(-1,-1), 0, cv::BORDER_REFLECT_101);
-  std::cout << "nonlinear after derivates" << std::endl;
-
-  for (int i = 0; i < f.rows; i++) {
-    //std::cout << "nonlinear data computation: " << i << std::endl;
-    for (int j = 0; j < f.cols; j++) {
-      data(i,j) = (1-gamma) * std::pow(i2.at<double>(i,j) - i1.at<double>(i,j),2);
-      data(i,j) += gamma * std::pow(i2x.at<double>(i,j) - i1x.at<double>(i,j), 2);
-      data(i,j) += gamma * std::pow(i2y.at<double>(i,j) - i1y.at<double>(i,j), 2);
-    }
-  }
-  std::cout << "nonlinear after data" << std::endl;
-}
-
 
 void updatePhi(const cv::Mat_<double> &data_p,
                const cv::Mat_<double> &data_m,
@@ -513,8 +457,6 @@ void updatePhi(const cv::Mat_<double> &data_p,
 
   double c1, c2, c3, c4, m, c, tmp;
 
-  //beta = beta * std::pow(data_p.rows * data_p.cols, 0.7) * 0.0002;
-  //std::cout << "beta: " << beta << std::endl;
 
   for (int i = 1; i < phi.rows-1; i++){
     for (int j = 1; j < phi.cols-1; j++){
@@ -565,3 +507,4 @@ double H(double x){
 double Hdot(double x){
   return (1.0/M_PI) * (DELTA/(DELTA*DELTA + x*x));
 }
+

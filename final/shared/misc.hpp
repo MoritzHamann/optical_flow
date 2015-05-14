@@ -16,19 +16,17 @@ void TrackbarCallback(int value, void *userdata);
 void computeColorFlowField2(const cv::Mat_<cv::Vec2d> &flowfield, cv::Mat &img);
 double CalcAngularError(const cv::Mat_<cv::Vec2d> &flowfield, const cv::Mat_<cv::Vec2d> truth);
 
-void setupParameters(std::unordered_map<std::string, parameter> &parameters);
+void loadParameters(cv::FileNode &node, std::unordered_map<std::string, parameter> &parameters);
+void saveParameters(cv::FileStorage &storage, std::unordered_map<std::string, parameter> &parameters);
+double getParameter(std::string name, std::unordered_map<std::string, parameter> &parameters);
 void computeFlowField(const cv::Mat &image1,
-                 const cv::Mat &image2,
-                 std::unordered_map<std::string, parameter> &parameters,
-                 cv::Mat_<cv::Vec2d> &flowfield);
-void computeFlowField(const cv::Mat &image1,
-                 const cv::Mat &image2,
-                 std::unordered_map<std::string, parameter> &parameters,
-                 cv::Mat_<cv::Vec2d> &flowfield,
-                 cv::Mat_<double> &phi,
-                 const cv::Mat_<cv::Vec2d> &initialflow,
-                 const cv::Vec6d &dominantmotion);
-
+                      const cv::Mat &image2,
+                      const GroundTruth &truth,
+                      cv::Mat_<double> &segmentation,
+                      std::unordered_map<std::string, parameter> &parameters,
+                      bool interactive,
+                      cv::FileStorage &scenario
+                      );
 void remap_border(cv::Mat &image, const cv::Mat_<cv::Vec2d> &flowfield, cv::Mat_<double> &mask, double h);
 void computeSegmentationImage(const cv::Mat_<double> &phi, const cv::Mat_<uchar> &image1, cv::Mat &segmentation);
 void computeSegmentationImageBW(const cv::Mat_<double> &phi, const cv::Mat_<uchar> &image1, cv::Mat &segmentation);

@@ -1,19 +1,26 @@
 #include "initial_separation.hpp"
 
 
-void initial_segmentation(const cv::Mat_<cv::Vec2d> &flowfield,
-                          //const cv::Mat_<cv::Vec2d> &initialflowfield
+void initial_segmentation(
+                          const cv::Mat_<cv::Vec2d> &initialflow
                           cv::Mat_<double> &phi,
                           const std::unordered_map<std::string, parameter> &parameters,
                           cv::Vec6d &dominantmotion
                         ){
 
-  segementFlowfield(flowfield, phi, parameters, dominantmotion);
+  segementFlowfield(initialflow, phi, parameters, dominantmotion);
 
   // box median filter of size 7x7 to get smooth edges on segement borders
   cv::blur(phi, phi, cv::Size(7,7), cv::Point(-1, -1), cv::BORDER_REPLICATE);
   
 }
+
+
+
+
+
+
+
 
 
 void segementFlowfield(const cv::Mat_<cv::Vec2d> &f, cv::Mat_<double> &phi, const std::unordered_map<std::string, parameter> &parameters, cv::Vec6d &dominantmotion){
@@ -196,6 +203,8 @@ void choose_better_affine(
   
   p_old = (error_new > error_old) ? p_old : p_new;
 }
+
+
 
 
 

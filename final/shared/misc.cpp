@@ -39,6 +39,12 @@ void computeColorFlowFieldError(const cv::Mat_<cv::Vec2d> &flowfield, GroundTrut
   hsv.convertTo(img, CV_8UC3);
 }
 
+
+
+
+
+
+
 void computeColorFlowField(const cv::Mat_<cv::Vec2d> &f, cv::Mat &img){
   // helper Mats
   cv::Mat flowfieldcomponents[2];
@@ -66,7 +72,7 @@ void computeColorFlowField(const cv::Mat_<cv::Vec2d> &f, cv::Mat &img){
 
 void TrackbarCallback(int value, void *userdata){
   parameter *p = static_cast<parameter*>(userdata);
-  std::cout << p->name << ": " << std::floor((double)p->value*100/p->divfactor)/100 << std::endl;
+  std::cout << p->name << ": " << std::floor((double)p->value*100*p->scale)/100 << std::endl;
 }
 
 
@@ -183,6 +189,8 @@ void computeSegmentationImage(const cv::Mat_<double> &phi, const cv::Mat_<uchar>
   }
 }
 
+
+
 void computeSegmentationImageBW(const cv::Mat_<double> &phi, const cv::Mat_<uchar> &image1, cv::Mat &segmentation) {
   segmentation.create(phi.size(), CV_8U);
   for (int i = 0; i < phi.rows; i++) {
@@ -191,6 +199,8 @@ void computeSegmentationImageBW(const cv::Mat_<double> &phi, const cv::Mat_<ucha
     }
   }
 }
+
+
 
 
 void remap_border(cv::Mat &image, const cv::Mat_<cv::Vec2d> &flowfield, cv::Mat_<double> &mask, double h){
@@ -234,4 +244,21 @@ void remap_border(cv::Mat &image, const cv::Mat_<cv::Vec2d> &flowfield, cv::Mat_
       image.at<double>(i, j) = value;
     }
   }
+}
+
+void loadParameters(cv::FileNode &node, std::unordered_map<std::string, parameter> &parameters) {
+  cv::FileNodeIterator it = node.begin(), it_end = node.end();
+  parameter temp;
+
+  for ( ; it != it_end; ++it) {
+    temp.name = (*it).name();
+    temp.value = (int)(*it)["value"];
+    temp.maxvalue = (int)(*it)["maxvalue"];
+    temp.scale = (double)(*it)["scale"];
+    parameters.insert(std::make_pair<std::string, parameter>(temp.name, temp));
+  }
+}
+
+double getParameter(std::string name, std::unordered_map<std::string, parameter> &parameters){
+  return parameters.at(name).value * parameters.at(name).scale;
 }

@@ -4,27 +4,41 @@
 #include <opencv2/core/core.hpp>
 #include <opencv2/highgui/highgui.hpp>
 #include <opencv2/imgproc/imgproc.hpp>
-#include "misc.hpp"
-#include "initial_separation.hpp"
+#include "../shared/misc.hpp"
+
 
 
 #define WINDOW_NAME "optical flow"
-#define PARAMETER_WINDOW_NAME "parameter"
+
+
+
+/**
+  * computes a color representation of the current flow
+  * @param cv::Mat f Current Flowfield
+  * @return cv::Mat A RGB image of the flowfield, visualized with hsv conversion
+*/
+
 
 
 int main(int argc, char *argv[]){
 
   // make sure we have enough commandline arguments
-  if (argc < 4){
-    std::cout << "use parameters: filename1, filename2, initialflowfilename,(filenametruth)" << std::endl;;
+  if (argc < 3){
+    std::cout << "use parameters: filename1, filename2, (savefilename), (filenametruth)" << std::endl;;
     std::exit(1);
   }
 
   // get the filenames
   std::string filename1 (argv[1]);
   std::string filename2 (argv[2]);
-  std::string initialflowfilename(argv[3]);
   std::string truthfilename;
+  std::string savefilename;
+  if (argc > 3){
+    savefilename = argv[3];
+  } else {
+    savefilename = "";
+  }
+
   if (argc > 4){
     truthfilename = argv[4];
   } else {
@@ -44,15 +58,9 @@ int main(int argc, char *argv[]){
     std::exit(1);
   }
 
-  cv::Mat_<cv::Vec2d> initialflow;
-  cv::FileStorage f(initialflowfilename, cv::FileStorage::READ);
-  f["flowfield"] >> initialflow;
-  f.release();
-
-
   // load truthfile
   GroundTruth truth(truthfilename);
-
+  
   // create window
   cv::namedWindow(WINDOW_NAME, cv::WINDOW_AUTOSIZE);
 
@@ -66,23 +74,15 @@ int main(int argc, char *argv[]){
   cv::Mat_<cv::Vec2d> flowfield(image1.size());
   flowfield = cv::Vec2d(0,0);
 
-  // create level set function
-  cv::Mat_<double> phi(image1.size());
-  cv::Mat_<double> segmentation(image1.size());
-  phi = 1;
-  segmentation = 1;
-
   // create image for display and helper matrixes
   cv::Mat displayimage(image1.rows, image1.cols + flowfield.cols, CV_8UC3);
 
   // create trackbars for every parameter
-  cv::namedWindow(PARAMETER_WINDOW_NAME, CV_WINDOW_NORMAL);
   for (auto &i: parameters){
-    cv::createTrackbar(i.first, PARAMETER_WINDOW_NAME, &i.second.value, i.second.maxvalue, TrackbarCallback, static_cast<void*>(&i.second));
+    cv::createTrackbar(i.first, WINDOW_NAME, &i.second.value, i.second.maxvalue, TrackbarCallback, static_cast<void*>(&i.second));
   }
 
-  cv::Mat error, segmentation_display, segmentation_displayBW;
-  cv::Vec6d dominantmotion;
+  cv::Mat error;
   // main loop which recomputes the optical flow with the new parameters
   while(true){
 
@@ -97,28 +97,15 @@ int main(int argc, char *argv[]){
     cv::imshow(WINDOW_NAME, displayimage);
 
     keyCode = cv::waitKey();
+
     // quit on ESC Key
     if (keyCode == 27){
       std::exit(0);
     }
 
-    if (keyCode == 105){
-      initial_segmentation(initialflow, segmentation, parameters, dominantmotion);
-      computeSegmentationImage(segmentation, image1, segmentation_display);
-      cv::imshow("segmentation", segmentation_display);
-    }
-
     // recompute on Enter Key
     if (keyCode == 13){
-      
-      // initialize phi with initial segmentation
-      phi = segmentation.clone();
-      
-      computeFlowField(image1, image2, parameters, flowfield, phi, initialflow, dominantmotion);
-      computeSegmentationImage(phi, image1, segmentation_display);
-      cv::imshow("segmentation", segmentation_display);
-      computeSegmentationImageBW(phi, image1, segmentation_displayBW);
-      cv::imshow("segmentationBW", segmentation_displayBW);
+      computeFlowField(image1, image2, parameters, flowfield);
 
       std::cout << std::endl << "recomputed flow with:" << std::endl;
       for (auto i: parameters){
@@ -127,10 +114,17 @@ int main(int argc, char *argv[]){
 
       if (truthfilename != ""){
         std::cout << std::endl << "AAE: " << truth.computeAngularError(flowfield) << std::endl;
-        std::cout << "AAE initial: " << truth.computeAngularError(initialflow) << std::endl;
         std::cout << "EPE: " << truth.computeEndpointError(flowfield) << std::endl;
       }
-
     }
+
+    // save on s key
+    if (keyCode == 115 && savefilename != ""){
+      cv::FileStorage f(savefilename, cv::FileStorage::WRITE);
+      f << "flowfield" << flowfield;
+      f.release();
+      std::cout << "flowfield was written to file: " << savefilename << std::endl;
+    }
+
   }
 }

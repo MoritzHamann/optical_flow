@@ -3,7 +3,7 @@
 */
 
 #include "brox_iso_separation.hpp"
-const double DELTA = 1.0;
+const double DELTA = 1;
 const double EPSILON_S = 0.01 * 0.01;
 const double EPSILON_D = 0.01 * 0.01;
 const double EPSILON_P = 0.01 * 0.01;
@@ -25,7 +25,7 @@ void setupParameters(std::unordered_map<std::string, parameter> &parameters){
   parameter iter_flow_before_phi = {"iter_flow_before_phi", 15, 100, 1};
   parameter Tm = {"Tm", 50, 100, 10};
   parameter Tr = {"Tr", 5, 20, 10};
-  parameter Ta = {"Ta", 10, 200, 100};
+  parameter Ta = {"Ta", 10, 800, 100};
   parameter blocksize = {"blocksize", 10, 100, 1};
 
   parameters.insert(std::make_pair<std::string, parameter>(alpha.name, alpha));
@@ -49,9 +49,9 @@ void setupParameters(std::unordered_map<std::string, parameter> &parameters){
 
 
 void computeFlowField(const cv::Mat &image1, const cv::Mat &image2, std::unordered_map<std::string, parameter> &parameters,
-                         cv::Mat_<cv::Vec2d> &flowfield, cv::Mat_<double> &phi){
+                         cv::Mat_<cv::Vec2d> &flowfield, cv::Mat_<double> &phi, const cv::Mat_<cv::Vec2d> &initialflow, const cv::Vec6d &dominantmotion){
 
-  cv::Mat i1smoothed, i2smoothed, i1, i2;
+  cv::Mat i1smoothed, i2smoothed, i1, i2, fp_d, fm_d, seg_d;
   int maxlevel = parameters.at("maxlevel").value;
   int maxiter = parameters.at("maxiter").value;
   double wrapfactor = (double)parameters.at("wrapfactor").value/parameters.at("wrapfactor").divfactor;
@@ -75,7 +75,7 @@ void computeFlowField(const cv::Mat &image1, const cv::Mat &image2, std::unorder
   cv::GaussianBlur(i1smoothed, i1smoothed, cv::Size(0,0), sigma, sigma, cv::BORDER_REFLECT);
   cv::GaussianBlur(i2smoothed, i2smoothed, cv::Size(0,0), sigma, sigma, cv::BORDER_REFLECT);
 
-  // initialize parital and complete flowfield
+  // create partial and complete flowfield
   flowfield.create(i1smoothed.size());
   cv::Mat_<cv::Vec2d> partial_p(i1smoothed.size());
   cv::Mat_<cv::Vec2d> partial_m(i1smoothed.size());
@@ -86,13 +86,44 @@ void computeFlowField(const cv::Mat &image1, const cv::Mat &image2, std::unorder
   cv::Mat_<double> mask(i1smoothed.size());
   mask = 1;
 
-  //partial_p = cv::Vec2d(0,0);
-  //partial_m = cv::Vec2d(0,0);
-  partial_p = flowfield.clone();
-  partial_m = flowfield.clone();
-  flowfield = cv::Vec2d(0,0);
-  flowfield_p = cv::Vec2d(0,0);
-  flowfield_m = cv::Vec2d(0,0);
+  // initialize flowfields
+  //flowfield_m = initialflow.clone();
+  //flowfield_p = initialflow.clone();
+  //flowfield = initialflow.clone();
+
+  for (int i = 0; i < flowfield.rows; i++) {
+    for (int j = 0; j < flowfield.cols; j++) {
+      flowfield_p(i,j)[0] = dominantmotion[0]*j + dominantmotion[2]*i + dominantmotion[4];
+      flowfield_p(i,j)[1] = dominantmotion[1]*j + dominantmotion[3]*i + dominantmotion[5];
+      
+      if (phi(i,j) > 0){
+        // pixel belongs to dominant motion
+        flowfield(i,j)[0] = dominantmotion[0]*j + dominantmotion[2]*i + dominantmotion[4];
+        flowfield(i,j)[1] = dominantmotion[1]*j + dominantmotion[3]*i + dominantmotion[5];
+        flowfield_m(i,j)[0] = 0;
+        flowfield_m(i,j)[1] = 0;
+      } else {
+        flowfield(i,j)[0] = initialflow(i,j)[0];
+        flowfield(i,j)[1] = initialflow(i,j)[1];
+        flowfield_m(i,j)[0] = initialflow(i,j)[0];
+        flowfield_m(i,j)[1] = initialflow(i,j)[1];
+      }
+    }
+  }
+  
+  /*flowfield = initialflow.clone();
+  for (int i = 0; i < flowfield.rows; i++) {
+    for (int j = 0; j < flowfield.cols; j++) {
+      flowfield_p(i,j)[0] = (phi(i,j) > 0) ? initialflow(i,j)[0] : 0;
+      flowfield_p(i,j)[1] = (phi(i,j) > 0) ? initialflow(i,j)[1] : 0;
+      flowfield_m(i,j)[0] = (phi(i,j) < 0) ? initialflow(i,j)[0] : 0;
+      flowfield_m(i,j)[1] = (phi(i,j) < 0) ? initialflow(i,j)[1] : 0;
+    }
+  }*/
+
+  //flowfield = cv::Vec2d(0,0);
+  //flowfield_p = cv::Vec2d(0,0);
+  //flowfield_m = cv::Vec2d(0,0);
 
 
   // loop over levels
@@ -113,13 +144,9 @@ void computeFlowField(const cv::Mat &image1, const cv::Mat &image2, std::unorder
     cv::resize(flowfield_m, flowfield_m, i1.size(), 0, 0, cv::INTER_AREA);
     cv::resize(partial_p, partial_p, i1.size(), 0, 0, cv::INTER_AREA);
     cv::resize(partial_m, partial_m, i1.size(), 0, 0, cv::INTER_AREA);
-    cv::resize(phi, phi, i1.size(), 0, 0, cv::INTER_LINEAR);
+    cv::resize(phi, phi, i1.size(), 0, 0, cv::INTER_AREA);
     cv::resize(mask, mask, i1.size(), 0, 0, cv::INTER_NEAREST);
 
-
-    flowfield = flowfield * wrapfactor;
-    flowfield_p = flowfield_p * wrapfactor;
-    flowfield_m = flowfield_m * wrapfactor;
 
     // set partial flowfield to zero
     partial_p = cv::Vec2d(0,0);
@@ -127,7 +154,7 @@ void computeFlowField(const cv::Mat &image1, const cv::Mat &image2, std::unorder
 
     // remap image
     copyMakeBorder(mask, mask, 1, 1, 1, 1, cv::BORDER_CONSTANT, 1);
-    remap_border(i2, flowfield, mask);
+    remap_border(i2, flowfield, mask, h);
 
     // compute tensors
     cv::Mat_<cv::Vec6d> t = (1.0 - gamma) * ComputeBrightnessTensor(i1, i2, h, h) + gamma * ComputeGradientTensor(i1, i2, h, h);
@@ -148,6 +175,7 @@ void computeFlowField(const cv::Mat &image1, const cv::Mat &image2, std::unorder
     cv::Mat_<double> smooth_p(partial_p.size());
     cv::Mat_<double> smooth_m(partial_p.size());
     for (int i = 0; i < maxiter; i++){
+      
       for (int j = 0; j < iter_flow_before_phi; j++){
         if (j % nonlinear_step == 0 || j == 0){
           // computed terms dont have L1 norm yet
@@ -158,15 +186,23 @@ void computeFlowField(const cv::Mat &image1, const cv::Mat &image2, std::unorder
         }
         Brox_step_iso_smooth(t, flowfield_p, flowfield_m, partial_p, partial_m, data_p, data_m, smooth_p, smooth_m, phi, mask, parameters, h);
       }
+      
       for (int k = 0; k < phi_iter; k++){
-        updatePhi(data_p, data_m, smooth_p, smooth_m, phi, parameters, h);
+        if (k % nonlinear_step == 0 || k == 0){
+          // computed terms dont have L1 norm yet
+          computeDataTerm(partial_p, t, data_p);
+          computeDataTerm(partial_m, t, data_m);
+          computeSmoothnessTerm(flowfield_p, partial_p, smooth_p, h, h);
+          computeSmoothnessTerm(flowfield_m, partial_m, smooth_m, h, h);
+        }
+        updatePhi(data_p, data_m, smooth_p, smooth_m, phi, parameters, mask, h);
       }
+
     }
 
     // add partial flowfield to complete flowfield
     flowfield_p = flowfield_p + partial_p;
     flowfield_m = flowfield_m + partial_m;
-
 
     for (int i = 0; i < flowfield_p.rows; i++){
       for (int j = 0; j < flowfield_p.cols; j++){
@@ -174,11 +210,24 @@ void computeFlowField(const cv::Mat &image1, const cv::Mat &image2, std::unorder
       }
     }
 
+    // remove the borders
+    flowfield = flowfield(cv::Rect(1, 1, i1.cols, i1.rows));
+    flowfield_p = flowfield_p(cv::Rect(1, 1, i1.cols, i1.rows));
+    flowfield_m = flowfield_m(cv::Rect(1, 1, i1.cols, i1.rows));
+    phi = phi(cv::Rect(1, 1, i1.cols, i1.rows));
+    mask = mask(cv::Rect(1, 1, i1.cols, i1.rows));
+    
+    computeColorFlowField(flowfield_p, fp_d);
+    cv::imshow("flowfield p", fp_d);
+    computeColorFlowField(flowfield_m, fm_d);
+    cv::imshow("flowfield m", fm_d);
+    computeSegmentationImageBW(phi, i1, seg_d);
+    cv::imshow("segmentation temp", seg_d);
+    cv::waitKey();
   }
-
-
-  flowfield = flowfield(cv::Rect(1,1,image1.cols, image1.rows));
-  phi = phi(cv::Rect(1,1,image1.cols, image1.rows));
+  
+  //flowfield = flowfield(cv::Rect(1,1,image1.cols, image1.rows));
+  //phi = phi(cv::Rect(1,1,image1.cols, image1.rows));
 }
 
 
@@ -233,7 +282,7 @@ void updateU(const cv::Mat_<cv::Vec2d> &f,
   for (int i = 1; i < p.rows-1; i++){
     for (int j = 1; j < p.cols-1; j++){
 
-      //if (phi(i,j)*sign > 0){
+      if (phi(i,j)*sign > 0){
         // pixel is in the segment
 
         xm = (j > 1) * (L1dot(smooth(i,j-1), EPSILON_S) + L1dot(smooth(i,j), EPSILON_S))/2.0 * (H(phi(i,j-1)*sign) + H(phi(i,j)*sign))/2.0 * alpha/(h*h);
@@ -260,7 +309,7 @@ void updateU(const cv::Mat_<cv::Vec2d> &f,
         p(i,j)[0] = (1.0-omega) * p(i,j)[0] + omega * tmp;
 
 
-      /*} else {
+      } else {
         // for now use smoothess term here
 
         // test for borders
@@ -279,7 +328,7 @@ void updateU(const cv::Mat_<cv::Vec2d> &f,
           - sum * f(i,j)[0]
         )/(sum);
 
-      }*/
+      }
     }
   }
 }
@@ -306,7 +355,7 @@ void updateV(const cv::Mat_<cv::Vec2d> &f,
    for (int i = 1; i < p.rows-1; i++){
      for (int j = 1; j < p.cols-1; j++){
 
-       //if (phi(i,j)*sign > 0){
+       if (phi(i,j)*sign > 0){
          // pixel is in the segment
 
          xm = (j > 1) * (L1dot(smooth(i,j-1), EPSILON_S) + L1dot(smooth(i,j), EPSILON_S))/2.0 * (H(phi(i,j-1)*sign) + H(phi(i,j)*sign))/2.0 * alpha/(h*h);
@@ -332,7 +381,7 @@ void updateV(const cv::Mat_<cv::Vec2d> &f,
          tmp = tmp /(- mask(i,j) * H(kappa * phi(i,j) *sign) * L1dot(data(i,j), EPSILON_D) * t(i,j)[1] - sum);
          p(i,j)[1] = (1.0-omega) * p(i,j)[1] + omega * tmp;
 
-      /*} else {
+      } else {
         // pixel lies out of the segment
 
         // test for borders
@@ -351,7 +400,7 @@ void updateV(const cv::Mat_<cv::Vec2d> &f,
            - sum * f(i,j)[1]
         )/(sum);
 
-      }*/
+      }
     }
   }
 }
@@ -421,6 +470,7 @@ void updatePhi(const cv::Mat_<double> &data_p,
                const cv::Mat_<double> &smooth_m,
                cv::Mat_<double> &phi,
                const std::unordered_map<std::string, parameter> &parameters,
+               const cv::Mat_<double> &mask,
                double h){
 
   // update the segment indicator function using implicit scheme
@@ -458,7 +508,7 @@ void updatePhi(const cv::Mat_<double> &data_p,
       m = (deltat*Hdot(phi(i,j))*beta)/(h*h);
       c = 1+m*(c1+c2+c3+c4);
       phi(i,j) = (1.0/c)*(phi(i,j) + m*(c1*phi(i,j+1)+c2*phi(i,j-1)+c3*phi(i+1,j)+c4*phi(i-1,j))
-                          -deltat*kappa*Hdot(kappa*phi(i,j))*(L1(data_p(i,j), EPSILON_D) - L1(data_m(i,j), EPSILON_D))
+                          -deltat*kappa*mask(i,j)*Hdot(kappa*phi(i,j))*(L1(data_p(i,j), EPSILON_D) - L1(data_m(i,j), EPSILON_D))
                           -deltat*alpha*Hdot(phi(i,j))*(L1(smooth_p(i,j), EPSILON_S) - L1(smooth_m(i,j), EPSILON_S)));
     }
   }

@@ -12,41 +12,22 @@ void debug(std::string text){
 }
 
 
-/**
-  * Set up the parameters
-*/
-void setupParameters(std::unordered_map<std::string, parameter> &parameters){
-  parameter alpha = {"alpha", 80, 1000, 10};
-  parameter omega = {"omega", 195, 200, 100};
-  parameter sigma = {"sigma", 10, 100, 10};
-  parameter gamma = {"gamma", 990, 1000, 1000};
-  parameter maxiter = {"maxiter", 40, 1000, 1};
-  parameter maxlevel = {"maxlevel", 4, 100, 1};
-  parameter wrapfactor = {"wrapfactor", 95, 100, 100};
-  parameter nonlinear_step = {"nonlinear_step", 3, 150, 1};
-
-  parameters.insert(std::make_pair<std::string, parameter>(alpha.name, alpha));
-  parameters.insert(std::make_pair<std::string, parameter>(omega.name, omega));
-  parameters.insert(std::make_pair<std::string, parameter>(sigma.name, sigma));
-  parameters.insert(std::make_pair<std::string, parameter>(gamma.name, gamma));
-  parameters.insert(std::make_pair<std::string, parameter>(maxiter.name, maxiter));
-  parameters.insert(std::make_pair<std::string, parameter>(maxlevel.name, maxlevel));
-  parameters.insert(std::make_pair<std::string, parameter>(wrapfactor.name, wrapfactor));
-  parameters.insert(std::make_pair<std::string, parameter>(nonlinear_step.name, nonlinear_step));
-
-}
-
-
-void computeFlowField(const cv::Mat &image1, const cv::Mat &image2, std::unordered_map<std::string, parameter> &parameters,
-                         cv::Mat_<cv::Vec2d> &flowfield){
+void computeFlowField(const cv::Mat &image1,
+                      const cv::Mat &image2,
+                      const GroundTruth &truth,
+                      cv::Mat_<double> &segmentation,
+                      std::unordered_map<std::string, parameter> &parameters,
+                      bool interactive,
+                      cv::FileStorage &scenario
+                      ) {
 
   cv::Mat i1smoothed, i2smoothed, i1, i2;
   int maxlevel = parameters.at("maxlevel").value;
   int maxiter = parameters.at("maxiter").value;
-  double wrapfactor = (double)parameters.at("wrapfactor").value/parameters.at("wrapfactor").divfactor;
-  double gamma = (double)parameters.at("gamma").value/parameters.at("gamma").divfactor;
-  double sigma = (double)parameters.at("sigma").value/parameters.at("sigma").divfactor;
-  double hx, hy;
+  double wrapfactor = getParameter("wrapfactor", parameters);
+  double gamma = getParameter("gamma", parameters);
+  double sigma = getParameter("sigma", parameters);
+  double h;
 
   // make deepcopy, so images are untouched
   i1smoothed = image1.clone();
@@ -62,22 +43,12 @@ void computeFlowField(const cv::Mat &image1, const cv::Mat &image2, std::unorder
 
   // initialize parital and complete flowfield
   cv::Mat_<cv::Vec2d> partial(i1smoothed.size());
-  cv::Mat flowfield_wrap;
+  cv::Mat_<cv::Vec2d> flowfield(i1smoothed.size());
   cv::Mat_<double> mask(i1smoothed.size());
 
-  flowfield.create(i1smoothed.size());
   partial = cv::Vec2d(0,0);
   flowfield = cv::Vec2d(0,0);
   mask = 1;
-
-  // make a 2-channel matrix with each pixel with its coordinates as value (serves as basis for flowfield remapping)
-  cv::Mat remap_basis(image1.size(), CV_32FC2);
-  for (int i = 0; i < image1.rows; i++){
-    for (int j = 0; j < image1.cols; j++){
-      remap_basis.at<cv::Vec2f>(i,j)[0] = (float)j;
-      remap_basis.at<cv::Vec2f>(i,j)[1] = (float)i;
-    }
-  }
 
   // loop for over levels
   for (int k = maxlevel; k >= 0; k--){
