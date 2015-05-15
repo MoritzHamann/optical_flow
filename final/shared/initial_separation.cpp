@@ -2,13 +2,13 @@
 
 
 void initial_segmentation(
-                          const cv::Mat_<cv::Vec2d> &initialflow
+                          const cv::Mat_<cv::Vec2d> &initialflow,
                           cv::Mat_<double> &phi,
-                          const std::unordered_map<std::string, parameter> &parameters,
+                          std::unordered_map<std::string, parameter> &parameters,
                           cv::Vec6d &dominantmotion
                         ){
 
-  segementFlowfield(initialflow, phi, parameters, dominantmotion);
+  segmentFlowfield(initialflow, phi, parameters, dominantmotion);
 
   // box median filter of size 7x7 to get smooth edges on segement borders
   cv::blur(phi, phi, cv::Size(7,7), cv::Point(-1, -1), cv::BORDER_REPLICATE);
@@ -23,13 +23,13 @@ void initial_segmentation(
 
 
 
-void segementFlowfield(const cv::Mat_<cv::Vec2d> &f, cv::Mat_<double> &phi, const std::unordered_map<std::string, parameter> &parameters, cv::Vec6d &dominantmotion){
+void segmentFlowfield(const cv::Mat_<cv::Vec2d> &f, cv::Mat_<double> &phi, std::unordered_map<std::string, parameter> &parameters, cv::Vec6d &dominantmotion){
 
   // parameters for segmentation
   int blocksize = parameters.at("blocksize").value;
-  double Tr = (double)parameters.at("Tr").value/parameters.at("Tr").divfactor;
-  double Tm = (double)parameters.at("Tm").value/parameters.at("Tm").divfactor;
-  double Ta= (double)parameters.at("Ta").value/parameters.at("Ta").divfactor;
+  double Tr = getParameter("Tr", parameters);
+  double Tm = getParameter("Tm", parameters);
+  double Ta = getParameter("Ta", parameters);
 
   // number of blocks in x and y direction 
   int num_x = std::ceil((float)f.cols/blocksize), num_y = std::ceil((float)f.rows/blocksize);

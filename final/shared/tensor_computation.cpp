@@ -72,7 +72,7 @@ cv::Mat ComputeBrightnessTensor(const cv::Mat_<double> &i1, const cv::Mat_<doubl
 */
 
 
-cv::Mat ComputeGradientTensor(const cv::Mat_<double> &i1, const cv::Mat_<double> &i2, double hx, double hy){
+cv::Mat ComputeGradientTensor(const cv::Mat_<double> &i1, const cv::Mat_<double> &i2, double h){
   // for now give hx and hy as parameters, maybe later calculate them with ROI
   cv::Mat middle, kernel, t, x, y, xx, yy, xy, yx, xt, yt;
 
@@ -80,18 +80,18 @@ cv::Mat ComputeGradientTensor(const cv::Mat_<double> &i1, const cv::Mat_<double>
   t = i2 - i1;
 
   kernel = (cv::Mat_<double>(1,5) << 1, -8, 0, 8, -1);
-  cv::filter2D(middle, x, CV_64F, kernel * 1.0/(12*hx), cv::Point(-1,-1), 0, cv::BORDER_REFLECT_101);
-  cv::filter2D(x, xx, CV_64F, kernel * 1.0/(12*hx), cv::Point(-1,-1), 0, cv::BORDER_REFLECT_101);
-  cv::filter2D(t, xt, CV_64F, kernel * 1.0/(12*hx), cv::Point(-1,-1), 0, cv::BORDER_REFLECT_101);
+  cv::filter2D(middle, x, CV_64F, kernel * 1.0/(12*h), cv::Point(-1,-1), 0, cv::BORDER_REFLECT_101);
+  cv::filter2D(x, xx, CV_64F, kernel * 1.0/(12*h), cv::Point(-1,-1), 0, cv::BORDER_REFLECT_101);
+  cv::filter2D(t, xt, CV_64F, kernel * 1.0/(12*h), cv::Point(-1,-1), 0, cv::BORDER_REFLECT_101);
 
   kernel = (cv::Mat_<double>(5,1) << 1, -8, 0, 8, -1);
-  cv::filter2D(middle, y, CV_64F, kernel * 1.0/(12*hy), cv::Point(-1,-1), 0, cv::BORDER_REFLECT_101);
-  cv::filter2D(y, yy, CV_64F, kernel * 1.0/(12*hy), cv::Point(-1,-1), 0, cv::BORDER_REFLECT_101);
-  cv::filter2D(x, xy, CV_64F, kernel * 1.0/(12*hy), cv::Point(-1,-1), 0, cv::BORDER_REFLECT_101);
-  cv::filter2D(t, yt, CV_64F, kernel * 1.0/(12*hy), cv::Point(-1,-1), 0, cv::BORDER_REFLECT_101);
+  cv::filter2D(middle, y, CV_64F, kernel * 1.0/(12*h), cv::Point(-1,-1), 0, cv::BORDER_REFLECT_101);
+  cv::filter2D(y, yy, CV_64F, kernel * 1.0/(12*h), cv::Point(-1,-1), 0, cv::BORDER_REFLECT_101);
+  cv::filter2D(x, xy, CV_64F, kernel * 1.0/(12*h), cv::Point(-1,-1), 0, cv::BORDER_REFLECT_101);
+  cv::filter2D(t, yt, CV_64F, kernel * 1.0/(12*h), cv::Point(-1,-1), 0, cv::BORDER_REFLECT_101);
   
   kernel = (cv::Mat_<double>(1,5) << 1, -8, 0, 8, -1);
-  cv::filter2D(y, yx, CV_64F, kernel * 1.0/(12*hy), cv::Point(-1,-1), 0, cv::BORDER_REFLECT_101);
+  cv::filter2D(y, yx, CV_64F, kernel * 1.0/(12*h), cv::Point(-1,-1), 0, cv::BORDER_REFLECT_101);
 
   xy = 0.5 * xy + 0.5 * yx;
 
@@ -111,7 +111,7 @@ cv::Mat ComputeGradientTensor(const cv::Mat_<double> &i1, const cv::Mat_<double>
   return b;
 }
 
-cv::Mat ComputeBrightnessTensor(const cv::Mat_<double> &i1, const cv::Mat_<double> &i2, double hx, double hy){
+cv::Mat ComputeBrightnessTensor(const cv::Mat_<double> &i1, const cv::Mat_<double> &i2, double h){
 
   // compute derivatives
   cv::Mat x, y, t, kernel, middle;
@@ -119,10 +119,10 @@ cv::Mat ComputeBrightnessTensor(const cv::Mat_<double> &i1, const cv::Mat_<doubl
   middle = 0.5 * i1 + 0.5 * i2;
 
   kernel = (cv::Mat_<double>(1,5) << 1, -8, 0, 8, -1);
-  cv::filter2D(middle, x, -1, kernel * 1.0/(12*hx), cv::Point(-1,-1), 0, cv::BORDER_REFLECT_101);
+  cv::filter2D(middle, x, -1, kernel * 1.0/(12*h), cv::Point(-1,-1), 0, cv::BORDER_REFLECT_101);
 
   kernel = (cv::Mat_<double>(5,1) << 1, -8, 0, 8, -1);
-  cv::filter2D(middle, y, -1, kernel * 1.0/(12*hy), cv::Point(-1,-1), 0, cv::BORDER_REFLECT_101);
+  cv::filter2D(middle, y, -1, kernel * 1.0/(12*h), cv::Point(-1,-1), 0, cv::BORDER_REFLECT_101);
 
   // compute tensor
   // channel 0=J11, 1=J22, 2=J33, 3=J12, 4=J13, 5=J23

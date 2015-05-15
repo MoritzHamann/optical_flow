@@ -201,51 +201,6 @@ void computeSegmentationImageBW(const cv::Mat_<double> &phi, const cv::Mat_<ucha
 }
 
 
-
-
-void remap_border(cv::Mat &image, const cv::Mat_<cv::Vec2d> &flowfield, cv::Mat_<double> &mask, double h){
-  // wrap the image with the information in flowfield. if information is out of boundaries, set mask to 0 (then the data term will not be taken into account)
-
-  double x_float, y_float, x_int, y_int, x_delta, y_delta, value;
-  
-  // copy input image to temporary image
-  cv::Mat image2 = image.clone();
-
-  for (int i = 0; i < flowfield.rows; i++){
-    for (int j = 0; j < flowfield.cols; j++){
-      
-      // compute new floating point location of image
-      x_float = j + flowfield(i,j)[0] * 1.0/h;
-      y_float = i + flowfield(i,j)[1] * 1.0/h;
-      
-      if ( (x_float < 0) || (x_float >= flowfield.cols-1) || (y_float < 0) || (y_float >= flowfield.rows-1) ){
-        // flow is outsite of boundaries
-
-        mask(i,j) = 0;
-        value = image2.at<double>(i,j);
-
-      } else {
-        // flow is inside boundaries => wraping with bilinear interpolation
-        mask(i,j) = 1.0;
-        
-        // compute integral and non-integral part of flow
-        x_int = std::floor(x_float);
-        y_int = std::floor(y_float);
-        x_delta = x_float - x_int;
-        y_delta = y_float - y_int;
-
-        // perform bilinear interpolation
-        value = (1.0-x_delta) * (1.0-y_delta) * image2.at<double>(y_int  , x_int  ) +
-                (1.0-x_delta) *      y_delta  * image2.at<double>(y_int+1, x_int  ) +
-                     x_delta  * (1.0-y_delta) * image2.at<double>(y_int  , x_int+1) +
-                     x_delta  *      y_delta  * image2.at<double>(y_int+1, x_int+1);
-      }
-
-      image.at<double>(i, j) = value;
-    }
-  }
-}
-
 void loadParameters(cv::FileNode &node, std::unordered_map<std::string, parameter> &parameters) {
   cv::FileNodeIterator it = node.begin(), it_end = node.end();
   parameter temp;

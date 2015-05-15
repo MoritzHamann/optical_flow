@@ -4,6 +4,7 @@
 #include <opencv2/core/core.hpp>
 #include <opencv2/highgui/highgui.hpp>
 #include "shared/misc.hpp"
+#include "shared/flow_computation.hpp"
 #include "shared/types.hpp"
 
 

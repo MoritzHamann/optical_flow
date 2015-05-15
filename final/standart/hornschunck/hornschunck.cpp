@@ -31,7 +31,7 @@ void computeFlowField(const cv::Mat &image1,
   cv::GaussianBlur(i2, i2, cv::Size(0,0), sigma, sigma, cv::BORDER_REFLECT);
 
   // compute Brightness and Gradient Tensors
-  cv::Mat_<cv::Vec6d> t = (1.0 - gamma) * ComputeBrightnessTensor(i1, i2, 1, 1) + gamma * ComputeGradientTensor(i1, i2, 1, 1);
+  cv::Mat_<cv::Vec6d> t = (1.0 - gamma) * ComputeBrightnessTensor(i1, i2, 1) + gamma * ComputeGradientTensor(i1, i2, 1);
 
   // create flowfield
   cv::Mat_<cv::Vec2d> flowfield(i1.size());
@@ -47,6 +47,10 @@ void computeFlowField(const cv::Mat &image1,
 
   flowfield = flowfield(cv::Rect(1,1,image1.cols, image1.rows));
 }
+
+
+
+
 
 /**
   * this functions performs one iteration step in the hornschunck algorithm

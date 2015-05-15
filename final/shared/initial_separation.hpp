@@ -14,12 +14,12 @@
 
 void initial_segmentation(const cv::Mat_<cv::Vec2d> &flowfield,
                         cv::Mat_<double> &phi,
-                        const std::unordered_map<std::string, parameter> &parameters,
+                        std::unordered_map<std::string, parameter> &parameters,
                         cv::Vec6d &dominantmotion
                       );
-void segementFlowfield(const cv::Mat_<cv::Vec2d> &f,
+void segmentFlowfield(const cv::Mat_<cv::Vec2d> &f,
                        cv::Mat_<double> &phi,
-                       const std::unordered_map<std::string, parameter> &parameters,
+                       std::unordered_map<std::string, parameter> &parameters,
                        cv::Vec6d &dominantmotion);
 
 bool are_close_blocks(cv::Vec6d a1, cv::Vec6d a2, double Tm, double r);
