@@ -68,15 +68,15 @@ void computeFlowField(const cv::Mat &image1,
     // resize mask and set it to 1
     cv::resize(mask, mask, i1.size(), 0, 0, cv::INTER_NEAREST);
     mask = 1;
+
+    // remap the second image with bilinear interpolation
+    i2mapped = i2.clone();
+    remap_border(i2mapped, flowfield, mask, h);
     
     // add 1px border to flowfield, parital and mask
     cv::copyMakeBorder(flowfield, flowfield, 1, 1, 1, 1, cv::BORDER_CONSTANT, 0);
     cv::copyMakeBorder(partial, partial, 1, 1, 1, 1, cv::BORDER_CONSTANT, 0);
     cv::copyMakeBorder(mask, mask, 1, 1, 1, 1, cv::BORDER_CONSTANT, 1);
-
-    // remap the second image with bilinear interpolation
-    i2mapped = i2.clone();
-    remap_border(i2mapped, flowfield, mask, h);
 
     // compute tensors and add 1px border
     cv::Mat_<cv::Vec6d> t = (1.0 - gamma) * ComputeBrightnessTensor(i1, i2mapped, h) + gamma * ComputeGradientTensor(i1, i2mapped, h);
@@ -103,6 +103,23 @@ void computeFlowField(const cv::Mat &image1,
     partial = partial(cv::Rect(1, 1, i1.cols, i1.rows));
     mask = mask(cv::Rect(1, 1, i1.cols, i1.rows));
   }
+
+  if (interactive) {
+    displayFlow("flow", flowfield);
+    displayError("error", flowfield, truth);
+    
+    if (truth.isSet) {
+      std::cout << "AAE:" << truth.computeAngularError(flowfield) << std::endl;
+      std::cout << "EPE:" << truth.computeEndpointError(flowfield) << std::endl;
+    }
+
+    std::string scenarioname;
+    scenario["scenarioname"] >> scenarioname;
+    cv::FileStorage s(scenarioname+".xml", cv::FileStorage::APPEND);
+    s << "initialflow" << flowfield;
+    s.release();
+  }
+
 }
 
 

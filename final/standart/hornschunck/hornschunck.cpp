@@ -14,12 +14,17 @@ void computeFlowField(const cv::Mat &image1,
                       cv::FileStorage &scenario
                       ) {
 
+
+  std::cout << "started computation" << std::endl;
+
   // convert images into 64 bit floating point images
   cv::Mat i1, i2;
   i1 = image1.clone();
   i1.convertTo(i1, CV_64F);
   i2 = image2.clone();
   i2.convertTo(i2, CV_64F);
+
+  displayImage("image1", i1);
 
   // parameters
   double sigma = getParameter("sigma", parameters);
@@ -46,6 +51,16 @@ void computeFlowField(const cv::Mat &image1,
   }
 
   flowfield = flowfield(cv::Rect(1,1,image1.cols, image1.rows));
+  
+  if (interactive) {
+    displayFlow("flow", flowfield);
+    displayError("error", flowfield, truth);
+    
+    if (truth.isSet) {
+      std::cout << "AAE:" << truth.computeAngularError(flowfield) << std::endl;
+      std::cout << "EPE:" << truth.computeEndpointError(flowfield) << std::endl;
+    }
+  }
 }
 
 

@@ -5,7 +5,7 @@
   * @param cv::Mat f Current Flowfield
   * @return cv::Mat A RGB image of the flowfield, visualized with hsv conversion
 */
-void computeColorFlowFieldError(const cv::Mat_<cv::Vec2d> &flowfield, GroundTruth &truth, cv::Mat &img){
+void computeColorFlowFieldError(const cv::Mat_<cv::Vec2d> &flowfield, const GroundTruth &truth, cv::Mat &img){
   // helper Mats
   cv::Mat_<cv::Vec2d> f;
   cv::Mat flowfieldcomponents[2];
@@ -174,7 +174,7 @@ void computeColorFlowField2(const cv::Mat_<cv::Vec2d> &flowfield, cv::Mat &img){
 
 
 
-void computeSegmentationImage(const cv::Mat_<double> &phi, const cv::Mat_<uchar> &image1, cv::Mat &segmentation){
+void computeSegmentationImage(const cv::Mat_<double> &phi, cv::Mat &segmentation){
   double max, min;
   cv::minMaxIdx(phi, &min, &max);
   segmentation.create(phi.size(), CV_8U);
@@ -214,6 +214,54 @@ void loadParameters(cv::FileNode &node, std::unordered_map<std::string, paramete
   }
 }
 
+void saveParameters(cv::FileStorage &storage, std::unordered_map<std::string, parameter> &parameters){
+  storage << "parameters" << "{";
+  
+  for (auto i: parameters) {
+    storage << i.first << "{";
+    storage << "value" << i.second.value << "maxvalue" << i.second.maxvalue << "scale" << i.second.scale;
+    storage << "}";
+  }
+
+  storage << "}";
+}
+
 double getParameter(std::string name, std::unordered_map<std::string, parameter> &parameters){
   return parameters.at(name).value * parameters.at(name).scale;
+}
+
+
+void displayFlow(std::string windowname, const cv::Mat_<cv::Vec2d> &flowfield){
+  cv::Mat flowfield_disp;
+  computeColorFlowField(flowfield, flowfield_disp);
+  cv::imshow(windowname, flowfield_disp);
+}
+
+
+void displayError(std::string windowname, const cv::Mat_<cv::Vec2d> &flowfield, const GroundTruth &truth){
+  cv::Mat error_disp;
+  computeColorFlowFieldError(flowfield, truth, error_disp);
+  cv::imshow(windowname, error_disp);
+}
+
+void displayImage(std::string windowname, const cv::Mat &image){
+  cv::Mat disp_img;
+
+  image.convertTo(disp_img, CV_8UC3);
+  cv::imshow(windowname, disp_img);
+}
+
+void displaySegmentation(std::string windowname, const cv::Mat_<double> &phi){
+  cv::Mat disp_seg;
+
+  computeSegmentationImage(phi, disp_seg);
+  cv::imshow(windowname, disp_seg);
+}
+
+
+void displaySegmentationBW(std::string windowname, const cv::Mat_<double> &phi, const cv::Mat &image){
+  cv::Mat disp_seg;
+
+  computeSegmentationImageBW(phi, image, disp_seg);
+  cv::imshow(windowname, disp_seg);
 }

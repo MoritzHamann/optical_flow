@@ -60,10 +60,14 @@ void computeFlowField(const cv::Mat &image1,
   }
 
   if (interactive) {
-    std::cout << "new separation?" << std::endl;
-    char keyCode = cv::waitKey();
-    if (keyCode == 'y') {
-      initial_segmentation(initialflow, segmentation, parameters, dominantmotion);
+    char keyCode = 'y';
+    while (keyCode == 'y'){
+      displaySegmentation("initialsegmentation", segmentation);
+      std::cout << "new separation?" << std::endl;
+      keyCode = cv::waitKey();
+      if (keyCode == 'y') {
+        initial_segmentation(initialflow, segmentation, parameters, dominantmotion);
+      }
     }
   } else {
     initial_segmentation(initialflow, segmentation, parameters, dominantmotion);
@@ -114,15 +118,15 @@ void computeFlowField(const cv::Mat &image1,
     cv::Mat_<cv::Vec6d> tm = (1.0 - gamma) * ComputeBrightnessTensor(i1, i2m, h) + gamma * ComputeGradientTensor(i1, i2m, h);
     
     // add 1px border to flowfield, parital and tensor
-    cv::copyMakeBorder(flowfield, flowfield, 1, 1, 1, 1, cv::BORDER_CONSTANT, 0);
-    cv::copyMakeBorder(flowfield_p, flowfield_p, 1, 1, 1, 1, cv::BORDER_CONSTANT, 0);
-    cv::copyMakeBorder(flowfield_m, flowfield_m, 1, 1, 1, 1, cv::BORDER_CONSTANT, 0);
-    cv::copyMakeBorder(partial_p, partial_p, 1, 1, 1, 1, cv::BORDER_CONSTANT, 0);
-    cv::copyMakeBorder(partial_m, partial_m, 1, 1, 1, 1, cv::BORDER_CONSTANT, 0);
-    cv::copyMakeBorder(phi, phi, 1, 1, 1, 1, cv::BORDER_REPLICATE, 0);
-    cv::copyMakeBorder(tp, tp, 1, 1, 1, 1, cv::BORDER_CONSTANT, 0);
-    cv::copyMakeBorder(tm, tm, 1, 1, 1, 1, cv::BORDER_CONSTANT, 0);
-    cv::copyMakeBorder(mask, mask, 1, 1, 1, 1, cv::BORDER_CONSTANT, 1);
+    cv::copyMakeBorder(flowfield, flowfield, 1, 1, 1, 1, cv::BORDER_CONSTANT|cv::BORDER_ISOLATED, 0);
+    cv::copyMakeBorder(flowfield_p, flowfield_p, 1, 1, 1, 1, cv::BORDER_CONSTANT|cv::BORDER_ISOLATED, 0);
+    cv::copyMakeBorder(flowfield_m, flowfield_m, 1, 1, 1, 1, cv::BORDER_CONSTANT|cv::BORDER_ISOLATED, 0);
+    cv::copyMakeBorder(partial_p, partial_p, 1, 1, 1, 1, cv::BORDER_CONSTANT|cv::BORDER_ISOLATED, 0);
+    cv::copyMakeBorder(partial_m, partial_m, 1, 1, 1, 1, cv::BORDER_CONSTANT|cv::BORDER_ISOLATED, 0);
+    cv::copyMakeBorder(phi, phi, 1, 1, 1, 1, cv::BORDER_REPLICATE|cv::BORDER_ISOLATED, 0);
+    cv::copyMakeBorder(tp, tp, 1, 1, 1, 1, cv::BORDER_CONSTANT|cv::BORDER_ISOLATED, 0);
+    cv::copyMakeBorder(tm, tm, 1, 1, 1, 1, cv::BORDER_CONSTANT|cv::BORDER_ISOLATED, 0);
+    cv::copyMakeBorder(mask, mask, 1, 1, 1, 1, cv::BORDER_CONSTANT|cv::BORDER_ISOLATED, 1);
 
 
     // main loop
@@ -130,23 +134,27 @@ void computeFlowField(const cv::Mat &image1,
     cv::Mat_<double> data_m(partial_p.size());
     cv::Mat_<double> smooth_p(partial_p.size());
     cv::Mat_<double> smooth_m(partial_p.size());
+    cv::Mat_<double> data_pNL(partial_p.size());
+    cv::Mat_<double> data_mNL(partial_p.size());
     for (int i = 0; i < maxiter; i++){
         
       if (i % nonlinear_step == 0 || i == 0){
         computeDataTerm(partial_p, tp, data_p);
         computeDataTerm(partial_m, tm, data_m);
-        computeSmoothnessTerm(flowfield_p, partial_p, smooth_p, i);
-        computeSmoothnessTerm(flowfield_m, partial_m, smooth_m, i);
+        //computeDataTermNL(flowfield_p+partial_p, i1, i2, data_pNL, mask, gamma, h);
+        //computeDataTermNL(flowfield_m+partial_m, i1, i2, data_mNL, mask, gamma, h);
+        computeSmoothnessTerm(flowfield_p, partial_p, smooth_p, h);
+        computeSmoothnessTerm(flowfield_m, partial_m, smooth_m, h);
       }
       
       for (int j = 0; j < iter_flow_before_phi; j++){
-        Brox_step_iso_smooth(tp, tp, flowfield_p, flowfield_m, partial_p, partial_m, data_p, data_m, smooth_p, smooth_m, phi, mask, parameters, h);
+        Brox_step_iso_smooth(tp, tm, flowfield_p, flowfield_m, partial_p, partial_m, data_p, data_m, smooth_p, smooth_m, phi, mask, parameters, h);
       }
       
       for (int k = 0; k < phi_iter; k++){
         updatePhi(data_p, data_m, smooth_p, smooth_m, phi, parameters, mask, h);
       }
-
+      
     }
 
     // add partial flowfield to complete flowfield
@@ -159,14 +167,14 @@ void computeFlowField(const cv::Mat &image1,
     flowfield_m = flowfield_m(cv::Rect(1, 1, i1.cols, i1.rows));
     phi = phi(cv::Rect(1, 1, i1.cols, i1.rows));
     mask = mask(cv::Rect(1, 1, i1.cols, i1.rows));
-    
-    /*computeColorFlowField(flowfield_p, fp_d);
-    cv::imshow("flowfield p", fp_d);
-    computeColorFlowField(flowfield_m, fm_d);
-    cv::imshow("flowfield m", fm_d);
-    computeSegmentationImageBW(phi, i1, seg_d);
-    cv::imshow("segmentation temp", seg_d);
-    cv::waitKey();*/
+    if (interactive) {
+      displayFlow("flowfield p", flowfield_p);
+      displayFlow("flowfield m", flowfield_m);
+      displaySegmentation("phi temp", phi);
+      displaySegmentationBW("segmentation temp", phi, i1);
+      displaySegmentationBW("mask temp", mask, i1);
+      cv::waitKey();
+    }
   }
   
   for (int i = 0; i < flowfield_p.rows; i++){
@@ -175,6 +183,16 @@ void computeFlowField(const cv::Mat &image1,
     }
   }
 
+  if (interactive) {
+    displayFlow("flow", flowfield);
+    displayError("error", flowfield, truth);
+    displaySegmentation("finalsegmentation", phi);
+     
+    if (truth.isSet) {
+      std::cout << "AAE:" << truth.computeAngularError(flowfield) << std::endl;
+      std::cout << "EPE:" << truth.computeEndpointError(flowfield) << std::endl;
+    }
+  }
 }
 
 
@@ -396,7 +414,7 @@ void updatePhi(const cv::Mat_<double> &data_p,
       m = (deltat*Hdot(phi(i,j))*beta)/(h*h);
       c = 1+m*(c1+c2+c3+c4);
       phi(i,j) = (1.0/c)*(phi(i,j) + m*(c1*phi(i,j+1)+c2*phi(i,j-1)+c3*phi(i+1,j)+c4*phi(i-1,j))
-                          -deltat*kappa*mask(i,j)*Hdot(kappa*phi(i,j))*(L1(data_p(i,j), EPSILON_D) - L1(data_m(i,j), EPSILON_D)));
+                          -deltat*kappa*Hdot(kappa*phi(i,j))*(L1(data_p(i,j), EPSILON_D) - L1(data_m(i,j), EPSILON_D)));
     }
   }
 
@@ -404,7 +422,7 @@ void updatePhi(const cv::Mat_<double> &data_p,
 
 
 double H(double x){
-  return (x >= 0) ? 1 : 0;
+  //return (x >= 0) ? 1 : 0;
   return 0.5 * (1 + (2.0/M_PI)*std::atan(x/DELTA));
 }
 

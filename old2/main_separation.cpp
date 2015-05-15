@@ -46,7 +46,7 @@ int main(int argc, char *argv[]){
 
   cv::Mat_<cv::Vec2d> initialflow;
   cv::FileStorage f(initialflowfilename, cv::FileStorage::READ);
-  f["flowfield"] >> initialflow;
+  f["initialflow"] >> initialflow;
   f.release();
 
 
@@ -110,10 +110,10 @@ int main(int argc, char *argv[]){
 
     // recompute on Enter Key
     if (keyCode == 13){
-      
+
       // initialize phi with initial segmentation
       phi = segmentation.clone();
-      
+
       computeFlowField(image1, image2, parameters, flowfield, phi, initialflow, dominantmotion);
       computeSegmentationImage(phi, image1, segmentation_display);
       cv::imshow("segmentation", segmentation_display);

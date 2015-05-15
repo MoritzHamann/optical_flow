@@ -63,13 +63,13 @@ void computeSmoothnessTerm(const cv::Mat_<cv::Vec2d> &f, const cv::Mat_<cv::Vec2
 
   // derivates in y-direction
   kernel = (cv::Mat_<double>(5,1) << 1, -8, 0, 8, -1);
-  cv::filter2D(flow_u, uy, CV_64F, kernel * 1.0/(12*h), cv::Point(-1,-1), 0, cv::BORDER_REFLECT_101);
-  cv::filter2D(flow_v, vy, CV_64F, kernel * 1.0/(12*h), cv::Point(-1,-1), 0, cv::BORDER_REFLECT_101);
+  cv::filter2D(flow_u, uy, CV_64F, kernel * 1.0/(12*h), cv::Point(-1,-1), 0, cv::BORDER_REFLECT_101|cv::BORDER_ISOLATED);
+  cv::filter2D(flow_v, vy, CV_64F, kernel * 1.0/(12*h), cv::Point(-1,-1), 0, cv::BORDER_REFLECT_101|cv::BORDER_ISOLATED);
 
   // derivates in x-dirction
   kernel = (cv::Mat_<double>(1,5) << 1, -8, 0, 8, -1);
-  cv::filter2D(flow_u, ux, CV_64F, kernel * 1.0/(12*h), cv::Point(-1,-1), 0, cv::BORDER_REFLECT_101);
-  cv::filter2D(flow_v, vx, CV_64F, kernel * 1.0/(12*h), cv::Point(-1,-1), 0, cv::BORDER_REFLECT_101);
+  cv::filter2D(flow_u, ux, CV_64F, kernel * 1.0/(12*h), cv::Point(-1,-1), 0, cv::BORDER_REFLECT_101|cv::BORDER_ISOLATED);
+  cv::filter2D(flow_v, vx, CV_64F, kernel * 1.0/(12*h), cv::Point(-1,-1), 0, cv::BORDER_REFLECT_101|cv::BORDER_ISOLATED);
 
   for (int i = 0; i < p.rows; i++){
     for (int j = 0; j < p.cols; j++){
@@ -107,33 +107,28 @@ void computeDataTermNL(const cv::Mat_<cv::Vec2d> &f, const cv::Mat &image1, cons
   //cv::Mat_<cv::Vec2d> &f = flowfield(cv::Rect(1, 1, flowfield.cols, flowfield.rows));
 
   // add border to i1 and i2
-  cv::copyMakeBorder(i1, i1, 1, 1, 1, 1, cv::BORDER_REPLICATE, 0);
-  cv::copyMakeBorder(i2, i2, 1, 1, 1, 1, cv::BORDER_REPLICATE, 0);
+  cv::copyMakeBorder(i1, i1, 1, 1, 1, 1, cv::BORDER_REPLICATE|cv::BORDER_ISOLATED, 0);
+  cv::copyMakeBorder(i2, i2, 1, 1, 1, 1, cv::BORDER_REPLICATE|cv::BORDER_ISOLATED, 0);
 
   // remap i2
-  std::cout << "nonlinear before remap" << std::endl;
   remap_border(i2, f, mask, h);
-  std::cout << "nonlinear after remap" << std::endl;
 
   // compute fx and fy for image 1 and image2
   kernel = (cv::Mat_<double>(1,5) << 1, -8, 0, 8, -1);
-  cv::filter2D(i1, i1x, CV_64F, kernel * 1.0/(12*h), cv::Point(-1,-1), 0, cv::BORDER_REFLECT_101);
-  cv::filter2D(i2, i2x, CV_64F, kernel * 1.0/(12*h), cv::Point(-1,-1), 0, cv::BORDER_REFLECT_101);
+  cv::filter2D(i1, i1x, CV_64F, kernel * 1.0/(12*h), cv::Point(-1,-1), 0, cv::BORDER_REFLECT_101|cv::BORDER_ISOLATED);
+  cv::filter2D(i2, i2x, CV_64F, kernel * 1.0/(12*h), cv::Point(-1,-1), 0, cv::BORDER_REFLECT_101|cv::BORDER_ISOLATED);
 
   kernel = (cv::Mat_<double>(5,1) << 1, -8, 0, 8, -1);
-  cv::filter2D(i1, i1y, CV_64F, kernel * 1.0/(12*h), cv::Point(-1,-1), 0, cv::BORDER_REFLECT_101);
-  cv::filter2D(i2, i2y, CV_64F, kernel * 1.0/(12*h), cv::Point(-1,-1), 0, cv::BORDER_REFLECT_101);
-  std::cout << "nonlinear after derivates" << std::endl;
+  cv::filter2D(i1, i1y, CV_64F, kernel * 1.0/(12*h), cv::Point(-1,-1), 0, cv::BORDER_REFLECT_101|cv::BORDER_ISOLATED);
+  cv::filter2D(i2, i2y, CV_64F, kernel * 1.0/(12*h), cv::Point(-1,-1), 0, cv::BORDER_REFLECT_101|cv::BORDER_ISOLATED);
 
   for (int i = 0; i < f.rows; i++) {
-    //std::cout << "nonlinear data computation: " << i << std::endl;
     for (int j = 0; j < f.cols; j++) {
       data(i,j) = (1-gamma) * std::pow(i2.at<double>(i,j) - i1.at<double>(i,j),2);
       data(i,j) += gamma * std::pow(i2x.at<double>(i,j) - i1x.at<double>(i,j), 2);
       data(i,j) += gamma * std::pow(i2y.at<double>(i,j) - i1y.at<double>(i,j), 2);
     }
   }
-  std::cout << "nonlinear after data" << std::endl;
 }
 
 

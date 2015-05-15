@@ -79,7 +79,7 @@ class GroundTruth {
 
 
 
-  double computeAngularError(cv::Mat_<cv::Vec2d> flowfield) {
+  double computeAngularError(cv::Mat_<cv::Vec2d> flowfield) const {
     double amount = 0;
     double tmp1 = 0;
     double sum_ang = 0;
@@ -104,7 +104,7 @@ class GroundTruth {
 
 
 
-  double computeEndpointError(cv::Mat_<cv::Vec2d> flowfield) {
+  double computeEndpointError(cv::Mat_<cv::Vec2d> flowfield) const {
     // compute endpoint error
     
     double amount = 0;

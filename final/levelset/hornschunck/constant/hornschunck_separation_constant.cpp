@@ -56,16 +56,22 @@ void computeFlowField(const cv::Mat &image1,
     segmentation.create(i1.size());
     segmentation = 0;
   }
-
+  
   if (interactive) {
-    std::cout << "new segmentation?" << std::endl;
-    char keyCode = cv::waitKey();
-    if (keyCode == 'y') {
-      initial_segmentation(initialflow, segmentation, parameters, dominantmotion);
+    char keyCode = 'y';
+    while (keyCode == 'y'){
+      displaySegmentation("initialsegmentation", segmentation);
+      std::cout << "new separation?" << std::endl;
+      keyCode = cv::waitKey();
+      if (keyCode == 'y') {
+        initial_segmentation(initialflow, segmentation, parameters, dominantmotion);
+      }
     }
+    
   } else {
     initial_segmentation(initialflow, segmentation, parameters, dominantmotion);
   }
+
   phi = segmentation.clone();
 
 
@@ -93,6 +99,18 @@ void computeFlowField(const cv::Mat &image1,
   }
   flowfield = flowfield(cv::Rect(1,1,image1.cols, image1.rows));
   phi = phi(cv::Rect(1,1,image1.cols, image1.rows));
+
+  if (interactive) {
+    displayFlow("flow", flowfield);
+    displayError("error", flowfield, truth);
+    displaySegmentation("finalsegmentation", phi);
+    std::cout << phi << std::endl;
+     
+    if (truth.isSet) {
+      std::cout << "AAE:" << truth.computeAngularError(flowfield) << std::endl;
+      std::cout << "EPE:" << truth.computeEndpointError(flowfield) << std::endl;
+    }
+  }
 }
 
 
@@ -293,19 +311,19 @@ void updatePhi(cv::Mat_<cv::Vec2d> &flowfield_p,
       // also make sure that derivative on boundries is set to zero
       tmp = (j< phi.cols-2) * std::pow((phi(i,j+1) - phi(i,j))/h, 2) + (i>1)*(i<phi.rows-2)*std::pow((phi(i+1,j) - phi(i-1,j))/(2*h),2);
       tmp = (tmp < 0) ? 0 : tmp;
-      c1 = std::sqrt(1.0/tmp + EPSILON_P);
+      c1 = std::sqrt(1.0/(tmp + EPSILON_P));
 
       tmp = (j>1)*std::pow((phi(i,j) - phi(i,j-1))/h, 2) + (i<phi.rows-2)*(i>1)*(j>1)*std::pow((phi(i+1,j-1) - phi(i-1,j-1))/(2*h),2);
       tmp = (tmp < 0) ? 0 : tmp;
-      c2 = std::sqrt(1.0/tmp + EPSILON_P);
+      c2 = std::sqrt(1.0/(tmp + EPSILON_P));
 
       tmp = (j>1)*(j<phi.cols-2)*std::pow((phi(i,j+1) - phi(i,j-1))/(2*h), 2) + (i<phi.rows-2)*std::pow((phi(i+1,j) - phi(i,j))/(h),2);
       tmp = (tmp < 0) ? 0 : tmp;
-      c3 = std::sqrt(1.0/tmp + EPSILON_P);
+      c3 = std::sqrt(1.0/(tmp + EPSILON_P));
 
       tmp = (i>1)*(j>1)*(j<phi.cols-2)*std::pow((phi(i-1,j+1) - phi(i-1,j-1))/(2*h), 2) + (i>1)*std::pow((phi(i,j) - phi(i-1,j))/(h),2);
       tmp = (tmp < 0) ? 0 : tmp;
-      c4 = std::sqrt(1.0/tmp + EPSILON_P);
+      c4 = std::sqrt(1.0/(tmp + EPSILON_P));
 
       m = (deltat*Hdot(phi(i,j))*beta)/(h*h);
       c = 1+m*(c1+c2+c3+c4);
@@ -318,7 +336,8 @@ void updatePhi(cv::Mat_<cv::Vec2d> &flowfield_p,
 
 
 double H(double x){
-  return 0.5 * (1 + (2.0/M_PI)*std::atan(x/DELTA));
+  return (x >= 0) ? 1 : 0;
+  //return 0.5 * (1 + (2.0/M_PI)*std::atan(x/DELTA));
 }
 
 double Hdot(double x){

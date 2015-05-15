@@ -46,7 +46,11 @@ void computeFlowField(const cv::Mat &image1,
 
   // initialize mask
   cv::Mat_<double> mask(i1smoothed.size());
+  cv::Mat_<double> maskp(i1smoothed.size());
+  cv::Mat_<double> maskm(i1smoothed.size());
   mask = 1;
+  maskp = 1;
+  maskm = 1;
 
   // initialflow
   cv::Mat_<cv::Vec2d> initialflow;
@@ -60,11 +64,16 @@ void computeFlowField(const cv::Mat &image1,
   }
 
   if (interactive) {
-    std::cout << "new separation?" << std::endl;
-    char keyCode = cv::waitKey();
-    if (keyCode == 'y') {
-      initial_segmentation(initialflow, segmentation, parameters, dominantmotion);
+    char keyCode = 'y';
+    while (keyCode == 'y'){
+      displaySegmentation("initialsegmentation", segmentation);
+      std::cout << "new separation?" << std::endl;
+      keyCode = cv::waitKey();
+      if (keyCode == 'y') {
+        initial_segmentation(initialflow, segmentation, parameters, dominantmotion);
+      }
     }
+    
   } else {
     initial_segmentation(initialflow, segmentation, parameters, dominantmotion);
   }
@@ -72,12 +81,10 @@ void computeFlowField(const cv::Mat &image1,
   phi = segmentation.clone();
 
 
-  // initialize flowfields
-  //flowfield_m = initialflow.clone();
-  //flowfield_p = initialflow.clone();
-  //flowfield = initialflow.clone();
 
-  for (int i = 0; i < flowfield.rows; i++) {
+  // initialize flowfields
+
+  /*for (int i = 0; i < flowfield.rows; i++) {
     for (int j = 0; j < flowfield.cols; j++) {
       flowfield_p(i,j)[0] = dominantmotion[0]*j + dominantmotion[2]*i + dominantmotion[4];
       flowfield_p(i,j)[1] = dominantmotion[1]*j + dominantmotion[3]*i + dominantmotion[5];
@@ -95,7 +102,7 @@ void computeFlowField(const cv::Mat &image1,
         flowfield_m(i,j)[1] = initialflow(i,j)[1];
       }
     }
-  }
+  }*/
   
   /*flowfield = initialflow.clone();
   for (int i = 0; i < flowfield.rows; i++) {
@@ -107,9 +114,9 @@ void computeFlowField(const cv::Mat &image1,
     }
   }*/
 
-  //flowfield = cv::Vec2d(0,0);
-  //flowfield_p = cv::Vec2d(0,0);
-  //flowfield_m = cv::Vec2d(0,0);
+  flowfield = cv::Vec2d(0,0);
+  flowfield_p = cv::Vec2d(0,0);
+  flowfield_m = cv::Vec2d(0,0);
 
 
   // loop over levels
@@ -132,6 +139,8 @@ void computeFlowField(const cv::Mat &image1,
     cv::resize(partial_m, partial_m, i1.size(), 0, 0, cv::INTER_AREA);
     cv::resize(phi, phi, i1.size(), 0, 0, cv::INTER_AREA);
     cv::resize(mask, mask, i1.size(), 0, 0, cv::INTER_NEAREST);
+    cv::resize(maskp, maskp, i1.size(), 0, 0, cv::INTER_NEAREST);
+    cv::resize(maskm, maskm, i1.size(), 0, 0, cv::INTER_NEAREST);
 
 
     // set partial flowfield to zero
@@ -141,8 +150,9 @@ void computeFlowField(const cv::Mat &image1,
     // remap image
     i2p = i2.clone();
     i2m = i2.clone();
-    remap_border(i2p, flowfield_p, mask, h);
-    remap_border(i2m, flowfield_m, mask, h);
+    remap_border(i2p, flowfield_p, maskp, h);
+    remap_border(i2m, flowfield_m, maskm, h);
+    mask = maskp.mul(maskm);
 
     // compute tensors
     cv::Mat_<cv::Vec6d> tp = (1.0 - gamma) * ComputeBrightnessTensor(i1, i2p, h) + gamma * ComputeGradientTensor(i1, i2p, h);
@@ -155,8 +165,8 @@ void computeFlowField(const cv::Mat &image1,
     cv::copyMakeBorder(partial_p, partial_p, 1, 1, 1, 1, cv::BORDER_CONSTANT, 0);
     cv::copyMakeBorder(partial_m, partial_m, 1, 1, 1, 1, cv::BORDER_CONSTANT, 0);
     cv::copyMakeBorder(phi, phi, 1, 1, 1, 1, cv::BORDER_REPLICATE, 0);
-    cv::copyMakeBorder(tp, tp, 1, 1, 1, 1, cv::BORDER_CONSTANT, 0);
-    cv::copyMakeBorder(tm, tm, 1, 1, 1, 1, cv::BORDER_CONSTANT, 0);
+    cv::copyMakeBorder(tp, tp, 1, 1, 1, 1, cv::BORDER_REFLECT_101, 0);
+    cv::copyMakeBorder(tm, tm, 1, 1, 1, 1, cv::BORDER_REFLECT_101, 0);
     cv::copyMakeBorder(mask, mask, 1, 1, 1, 1, cv::BORDER_CONSTANT, 1);
 
 
@@ -165,23 +175,26 @@ void computeFlowField(const cv::Mat &image1,
     cv::Mat_<double> data_m(partial_p.size());
     cv::Mat_<double> smooth_p(partial_p.size());
     cv::Mat_<double> smooth_m(partial_p.size());
+    cv::Mat_<double> data_pNL(partial_p.size());
+    cv::Mat_<double> data_mNL(partial_p.size());
     for (int i = 0; i < maxiter; i++){
         
       if (i % nonlinear_step == 0 || i == 0){
         computeDataTerm(partial_p, tp, data_p);
         computeDataTerm(partial_m, tm, data_m);
-        computeSmoothnessTerm(flowfield_p, partial_p, smooth_p, i);
-        computeSmoothnessTerm(flowfield_m, partial_m, smooth_m, i);
+        //computeDataTermNL(flowfield_p+partial_p, i1, i2, data_pNL, mask, gamma, h);
+        //computeDataTermNL(flowfield_m+partial_m, i1, i2, data_mNL, mask, gamma, h);
+        computeSmoothnessTerm(flowfield_p, partial_p, smooth_p, h);
+        computeSmoothnessTerm(flowfield_m, partial_m, smooth_m, h);
       }
       
       for (int j = 0; j < iter_flow_before_phi; j++){
-        Brox_step_iso_smooth(tp, tp, flowfield_p, flowfield_m, partial_p, partial_m, data_p, data_m, smooth_p, smooth_m, phi, mask, parameters, h);
+        Brox_step_iso_smooth(tp, tm, flowfield_p, flowfield_m, partial_p, partial_m, data_p, data_m, smooth_p, smooth_m, phi, mask, parameters, h);
       }
       
       for (int k = 0; k < phi_iter; k++){
         updatePhi(data_p, data_m, smooth_p, smooth_m, phi, parameters, mask, h);
       }
-
     }
 
     // add partial flowfield to complete flowfield
@@ -195,13 +208,14 @@ void computeFlowField(const cv::Mat &image1,
     phi = phi(cv::Rect(1, 1, i1.cols, i1.rows));
     mask = mask(cv::Rect(1, 1, i1.cols, i1.rows));
     
-    /*computeColorFlowField(flowfield_p, fp_d);
-    cv::imshow("flowfield p", fp_d);
-    computeColorFlowField(flowfield_m, fm_d);
-    cv::imshow("flowfield m", fm_d);
-    computeSegmentationImageBW(phi, i1, seg_d);
-    cv::imshow("segmentation temp", seg_d);
-    cv::waitKey();*/
+    if (interactive) {
+      displayFlow("flowfield p", flowfield_p);
+      displayFlow("flowfield m", flowfield_m);
+      displaySegmentationBW("segmentation temp", phi, i1);
+      displaySegmentationBW("mask temp", mask, i1);
+      cv::waitKey();
+    }
+
   }
   
   for (int i = 0; i < flowfield_p.rows; i++){
@@ -209,6 +223,18 @@ void computeFlowField(const cv::Mat &image1,
       flowfield(i,j) = (phi(i,j) > 0) ? flowfield_p(i,j) : flowfield_m(i,j);
     }
   }
+
+  if (interactive) {
+    displayFlow("flow", flowfield);
+    displayError("error", flowfield, truth);
+    displaySegmentation("finalsegmentation", phi);
+     
+    if (truth.isSet) {
+      std::cout << "AAE:" << truth.computeAngularError(flowfield) << std::endl;
+      std::cout << "EPE:" << truth.computeEndpointError(flowfield) << std::endl;
+    }
+  }
+
 
 }
 
@@ -293,13 +319,12 @@ void updateU(const cv::Mat_<cv::Vec2d> &f,
 
 
       } else {
-        // for now use smoothess term here
-
+        
         // test for borders
-        xp =  (j < p.cols-2) * 1.0/(h*h) * (L1dot(smooth(i,j+1), EPSILON_S) + L1dot(smooth(i,j), EPSILON_S))/2.0;
-        xm =  (j > 1) * 1.0/(h*h) * (L1dot(smooth(i,j-1), EPSILON_S) + L1dot(smooth(i,j), EPSILON_S))/2.0;
-        yp =  (i < p.rows-2) * 1.0/(h*h) * (L1dot(smooth(i+1,j), EPSILON_S) + L1dot(smooth(i,j), EPSILON_S))/2.0;
-        ym =  (i > 1) * 1.0/(h*h) * (L1dot(smooth(i-1,j), EPSILON_S) + L1dot(smooth(i,j), EPSILON_S))/2.0;
+        xp =  (j < p.cols-2) * alpha/(h*h) * (L1dot(smooth(i,j+1), EPSILON_S) + L1dot(smooth(i,j), EPSILON_S))/2.0;
+        xm =  (j > 1) * alpha/(h*h) * (L1dot(smooth(i,j-1), EPSILON_S) + L1dot(smooth(i,j), EPSILON_S))/2.0;
+        yp =  (i < p.rows-2) * alpha/(h*h) * (L1dot(smooth(i+1,j), EPSILON_S) + L1dot(smooth(i,j), EPSILON_S))/2.0;
+        ym =  (i > 1) * alpha/(h*h) * (L1dot(smooth(i-1,j), EPSILON_S) + L1dot(smooth(i,j), EPSILON_S))/2.0;
         sum = xp + xm + yp + ym;
 
         p(i,j)[0] = (1.0-omega) * p(i,j)[0];
@@ -324,7 +349,7 @@ void updateV(const cv::Mat_<cv::Vec2d> &f,
              const cv::Mat_<double> smooth,
              const cv::Mat_<cv::Vec6d> &t,
              const cv::Mat_<double> &mask,
-             const std::unordered_map<std::string, parameter> &parameters,
+             std::unordered_map<std::string, parameter> &parameters,
              double h,
              double sign){
 
@@ -368,10 +393,10 @@ void updateV(const cv::Mat_<cv::Vec2d> &f,
         // pixel lies out of the segment
 
         // test for borders
-        xp =  (j < p.cols-2) * 1.0/(h*h) * (L1dot(smooth(i,j+1), EPSILON_S) + L1dot(smooth(i,j), EPSILON_S))/2.0;
-        xm =  (j > 1) * 1.0/(h*h) * (L1dot(smooth(i,j-1), EPSILON_S) + L1dot(smooth(i,j), EPSILON_S))/2.0;
-        yp =  (i < p.rows-2) * 1.0/(h*h) * (L1dot(smooth(i+1,j), EPSILON_S) + L1dot(smooth(i,j), EPSILON_S))/2.0;
-        ym =  (i > 1) * 1.0/(h*h) * (L1dot(smooth(i-1,j), EPSILON_S) + L1dot(smooth(i,j), EPSILON_S))/2.0;
+        xp =  (j < p.cols-2) * alpha/(h*h) * (L1dot(smooth(i,j+1), EPSILON_S) + L1dot(smooth(i,j), EPSILON_S))/2.0;
+        xm =  (j > 1) * alpha/(h*h) * (L1dot(smooth(i,j-1), EPSILON_S) + L1dot(smooth(i,j), EPSILON_S))/2.0;
+        yp =  (i < p.rows-2) * alpha/(h*h) * (L1dot(smooth(i+1,j), EPSILON_S) + L1dot(smooth(i,j), EPSILON_S))/2.0;
+        ym =  (i > 1) * alpha/(h*h) * (L1dot(smooth(i-1,j), EPSILON_S) + L1dot(smooth(i,j), EPSILON_S))/2.0;
         sum = xp + xm + yp + ym;
 
         p(i,j)[1] = (1.0-omega) * p(i,j)[1];
@@ -432,7 +457,7 @@ void updatePhi(const cv::Mat_<double> &data_p,
       m = (deltat*Hdot(phi(i,j))*beta)/(h*h);
       c = 1+m*(c1+c2+c3+c4);
       phi(i,j) = (1.0/c)*(phi(i,j) + m*(c1*phi(i,j+1)+c2*phi(i,j-1)+c3*phi(i+1,j)+c4*phi(i-1,j))
-                          -deltat*kappa*mask(i,j)*Hdot(kappa*phi(i,j))*(L1(data_p(i,j), EPSILON_D) - L1(data_m(i,j), EPSILON_D))
+                          -deltat*kappa*Hdot(kappa*phi(i,j))*(L1(data_p(i,j), EPSILON_D) - L1(data_m(i,j), EPSILON_D))
                           -deltat*alpha*Hdot(phi(i,j))*(L1(smooth_p(i,j), EPSILON_S) - L1(smooth_m(i,j), EPSILON_S)));
     }
   }

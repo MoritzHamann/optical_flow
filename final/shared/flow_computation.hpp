@@ -8,7 +8,7 @@
 
 const double EPSILON_D = 0.01 * 0.01;
 const double EPSILON_S = 0.01 * 0.01;
-const double DELTA=1.0;
+const double DELTA = 0.1;
 const double EPSILON_P = 0.01 * 0.01;
 
 void computeFlowField(const cv::Mat &image1,

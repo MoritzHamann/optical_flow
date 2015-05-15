@@ -49,9 +49,7 @@ void updateV(const cv::Mat_<cv::Vec2d> &f,
              double h,
              double sign);
 
-void updatePhi(const cv::Mat_<cv::Vec2d> &fp,
-               const cv::Mat_<cv::Vec2d> &fm,
-               const cv::Mat_<double> &data_p,
+void updatePhi(const cv::Mat_<double> &data_p,
                const cv::Mat_<double> &data_m,
                const cv::Mat_<cv::Vec3d> &smooth_p,
                const cv::Mat_<cv::Vec3d> &smooth_m,

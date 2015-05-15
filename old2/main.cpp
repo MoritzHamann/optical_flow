@@ -92,7 +92,7 @@ int main(int argc, char *argv[]){
     cv::cvtColor(image1, left, CV_GRAY2RGB);
     right = right * 0;
     computeColorFlowField(flowfield, right);
-    computeColorFlowFieldError((flowfield-truth.truthfield), error);
+    computeColorFlowFieldError(flowfield, truth, error);
     cv::imshow("error", error);
 
     cv::imshow(WINDOW_NAME, displayimage);

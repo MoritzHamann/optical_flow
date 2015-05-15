@@ -3,7 +3,7 @@ FLAGS=-Wno-c++11-extensions -Wall -flto -O3
 LIBS=-lopencv_core -lopencv_highgui -lopencv_imgproc
 
 hornschunck:
-	$(COMPILER) $(FLAGS) $(LIBS) main.cpp shared/misc.cpp shared/tensor_computation.cpp standart/hornschunck/hornschunck.cpp -o hornschunck
+	$(COMPILER) $(FLAGS) $(LIBS) main.cpp shared/misc.cpp shared/tensor_computation.cpp shared/flow_computation.cpp standart/hornschunck/hornschunck.cpp -o hornschunck
 
 brox_iso:
 	$(COMPILER) $(FLAGS) $(LIBS) main.cpp shared/misc.cpp shared/tensor_computation.cpp shared/flow_computation.cpp standart/brox_iso/brox_iso.cpp -o brox_iso
@@ -28,3 +28,6 @@ brox_iso_separation_constant:
 
 brox_aniso_separation_constant:
 	$(COMPILER) $(FLAGS) $(LIBS) main.cpp shared/misc.cpp shared/initial_separation.cpp shared/tensor_computation.cpp shared/flow_computation.cpp levelset/brox_aniso/constant/brox_aniso_separation_constant.cpp -o brox_aniso_separation_constant
+
+scenario:
+	$(COMPILER) $(FLAGS) $(LIBS) create_test_case.cpp shared/misc.cpp shared/tensor_computation.cpp shared/flow_computation.cpp -o scenario 

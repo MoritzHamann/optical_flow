@@ -64,17 +64,13 @@ int main(int argc, char *argv[]){
 
     while(true) {
       keyCode = cv::waitKey();
+      std::cout << keyCode << std::endl;
       if (keyCode == 27){
         std::exit(0);
       }
 
-      if (keyCode == 105) {
+      if (keyCode == 13) {
         computeFlowField(image1, image2, truth, segmentation, parameters, interactive, scenario);
-        if (truth.isSet){
-          std::cout << std::endl << "AAE: " << truth.computeAngularError(flowfield) << std::endl;
-          //std::cout << "AAE initial: " << truth.computeAngularError(initialflow) << std::endl;
-          std::cout << "EPE: " << truth.computeEndpointError(flowfield) << std::endl;
-        }
       }
     }
   } else {
